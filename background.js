@@ -156,6 +156,12 @@
       return false;
     }
 
+    if (message.type === 'OPEN_OPTIONS') {
+      chrome.runtime.openOptionsPage();
+      sendResponse({ success: true });
+      return false;
+    }
+
     sendResponse({ success: false, error: 'Unknown message type' });
     return false;
   });

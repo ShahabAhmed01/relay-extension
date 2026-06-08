@@ -18,6 +18,9 @@ const QwenScraper = (() => {
       const isUser = cn.includes('user') || cn.includes('human');
       messages.push({ role: isUser ? 'user' : 'assistant', content: text, index: index++ });
     });
+    if (messages.length === 0 && typeof GenericScraper !== 'undefined') {
+      return GenericScraper.scrapeMessages();
+    }
     return messages;
   }
 

@@ -711,8 +711,8 @@ const FloatingUI = (() => {
     if (closeBtn) closeBtn.addEventListener('click', () => _closePanel());
     if (settingsBtn) settingsBtn.addEventListener('click', () => {
       const api = (typeof browser !== 'undefined' && browser.runtime) ? browser : chrome;
-      if (api && api.runtime && api.runtime.openOptionsPage) {
-        api.runtime.openOptionsPage();
+      if (api && api.runtime && api.runtime.sendMessage) {
+        api.runtime.sendMessage({ type: 'OPEN_OPTIONS' });
       }
     });
 
@@ -782,6 +782,15 @@ const FloatingUI = (() => {
         setTimeout(() => _closePanel(), 500);
       });
     }
+
+    document.addEventListener('click', (e) => {
+      if (_isOpen && _panelHost) {
+        const path = e.composedPath();
+        if (!path.includes(_panelHost) && (!_fab || !path.includes(_fab))) {
+          _closePanel();
+        }
+      }
+    });
   }
 
   async function _updatePanelContent() {

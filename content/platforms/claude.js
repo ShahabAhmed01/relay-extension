@@ -35,6 +35,9 @@ const ClaudeScraper = (() => {
       });
     }
 
+    if (messages.length === 0 && typeof GenericScraper !== 'undefined') {
+      return GenericScraper.scrapeMessages();
+    }
     return messages;
   }
 

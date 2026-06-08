@@ -17,6 +17,9 @@ const PerplexityScraper = (() => {
       const isUser = el.matches('[class*="UserMessage"]') || el.matches('[data-testid="user-message"]');
       messages.push({ role: isUser ? 'user' : 'assistant', content: text, index: index++ });
     });
+    if (messages.length === 0 && typeof GenericScraper !== 'undefined') {
+      return GenericScraper.scrapeMessages();
+    }
     return messages;
   }
 

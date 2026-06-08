@@ -17,6 +17,9 @@ const MistralScraper = (() => {
       const isUser = (el.className || '').includes('User') || el.getAttribute('data-role') === 'user';
       messages.push({ role: isUser ? 'user' : 'assistant', content: text, index: index++ });
     });
+    if (messages.length === 0 && typeof GenericScraper !== 'undefined') {
+      return GenericScraper.scrapeMessages();
+    }
     return messages;
   }
 
