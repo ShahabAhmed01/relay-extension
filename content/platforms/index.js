@@ -48,8 +48,8 @@ const RelayPlatforms = (() => {
     {
       id: 'grok',
       name: 'Grok',
-      url: 'https://grok.x.ai',
-      matches: ['grok.x.ai', 'x.com'],
+      url: 'https://grok.com',
+      matches: ['grok.com', 'grok.x.ai', 'x.com'],
       color: '#1d9bf0',
       logoSvg: '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 2L12.77 14.57L8.5 20H11.5L14.27 16.35L18.5 22H22L14.97 12.43L19 7H16L13.47 10.35L9.5 5H6L12.73 13.57L9 20" stroke="#1d9bf0" stroke-width="1.5" fill="none"/></svg>',
     },

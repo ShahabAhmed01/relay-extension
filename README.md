@@ -49,7 +49,7 @@ Relay runs silently in the background, capturing your conversation history. When
 | Gemini | gemini.google.com |
 | Perplexity | perplexity.ai |
 | DeepSeek | chat.deepseek.com |
-| Grok | grok.x.ai |
+| Grok | grok.com |
 | Copilot | copilot.microsoft.com |
 | Meta AI | meta.ai |
 | Mistral | chat.mistral.ai |
