@@ -33,6 +33,8 @@ Relay runs silently in the background, capturing your conversation history. When
 
 ## How to Use
 
+> **Note:** You must be logged into the AI platforms (ChatGPT, Meta AI, Grok, etc.) for Relay to work. The extension cannot scrape or inject context if you are on the logged-out or welcome screens.
+
 1. **Chat like normal:** Go to ChatGPT, Claude, or any supported AI and start chatting. Relay saves everything automatically in the background.
 2. **Hit a limit?** Click the floating **Relay button** in the bottom corner of your screen.
 3. **Pick a new AI:** Choose the AI you want to switch to from the menu.
