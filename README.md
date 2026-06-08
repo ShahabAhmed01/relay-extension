@@ -1,51 +1,51 @@
-# Relay — AI Context Bridge
+# Relay: The AI Context Bridge
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
-[![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-Pending-orange.svg)](#)
 
 **Never lose your thread.**
 
-Relay is an open-source browser extension that automatically captures your AI conversations and lets you continue them on any other AI in one click — with full context injected.
-
-## 🚀 The Problem
-
-When a free AI model hits its usage limit, you lose all conversation context when switching to another AI. You have to re-explain everything from scratch.
-
-## 💡 The Solution
-
-Relay runs silently in the background, capturing your conversation history. When you hit a limit, click the Relay button, choose another AI platform, and your full context is pre-loaded into the new conversation.
+Relay is an open-source browser extension that acts as a bridge between all your favorite AI chatbots. It automatically captures your conversation history and lets you seamlessly jump to another AI model in one click, bringing your full context with you.
 
 ---
 
-## Installation (Developer Mode)
+### The Problem
+When using free AI models, hitting a usage limit means your workflow stops. Switching to a different AI platform usually means starting over and painstakingly re-explaining all the context and progress from your previous chat.
 
-### Chrome / Edge / Brave
+### The Solution
+Relay runs silently in the background of your browser, capturing your active conversation in real-time. When you hit a limit, simply click the Relay button, choose your backup AI platform, and your entire conversation history is instantly injected into the new chat. 
 
-1. Go to `chrome://extensions` (or `edge://extensions` / `brave://extensions`)
-2. Enable **Developer mode** (toggle in top-right corner)
-3. Click **Load unpacked**
-4. Select the `relay/` folder from this repository
-
-
+Pick up exactly where you left off.
 
 ---
 
-## How to Use
+### Key Features
 
-> **Note:** You must be logged into the AI platforms (ChatGPT, Meta AI, Grok, etc.) for Relay to work. The extension cannot scrape or inject context if you are on the logged-out or welcome screens.
-
-1. **Chat like normal:** Go to ChatGPT, Claude, or any supported AI and start chatting. Relay saves everything automatically in the background.
-2. **Hit a limit?** Click the floating **Relay button** in the bottom corner of your screen.
-3. **Pick a new AI:** Choose the AI you want to switch to from the menu.
-4. **Keep chatting!** A new tab opens with your entire conversation already typed into the box. Just hit send and continue exactly where you left off!
+* **Real-time Auto-capture:** Conversations are captured dynamically as you chat.
+* **One-click Switch:** Move to a different AI platform instantly.
+* **Seamless Injection:** Your full history is automatically pasted into the new AI's input box.
+* **Cross-platform Compatibility:** Works across Chrome, Edge, and Brave.
+* **Privacy First:** 100% local. Your data is stored on your device and never sent to external servers.
+* **Smart Compression:** Uses LZ compression to store extensive chat histories efficiently.
+* **Session Memory:** Retains your last 10 sessions for quick recovery.
 
 ---
 
-## Supported Platforms
+### How It Works
 
-| Platform | URL |
-|----------|-----|
+**Important Note:** You must be logged into the AI platforms (ChatGPT, Meta AI, Grok, etc.) for Relay to function. The extension cannot capture or inject context on logged-out or welcome screens.
+
+1. **Chat normally:** Go to your preferred AI and start a conversation. 
+2. **Switch platforms:** When you need to switch, click the floating Relay button in the corner of your screen.
+3. **Select your destination:** Choose your desired AI from the menu.
+4. **Continue your work:** A new tab will open with your entire context pre-loaded into the text box. Hit send and continue your workflow.
+
+---
+
+### Supported Platforms
+
+| Platform | Website |
+|----------|---------|
 | ChatGPT | chatgpt.com |
 | Claude | claude.ai |
 | Gemini | gemini.google.com |
@@ -61,78 +61,48 @@ Relay runs silently in the background, capturing your conversation history. When
 
 ---
 
-## Features
+### Installation (Developer Mode)
 
-- **Auto-capture** — Conversations are captured in real-time as you chat
-- **One-click switch** — Continue on any other AI platform instantly
-- **Context injection** — Full conversation history is formatted and injected into the new AI's input
-- **Cross-platform** — Works on Chrome, Edge, and Brave
-- **100% local** — All data stays on your device, never sent anywhere
-- **Shadow DOM isolation** — Relay's UI doesn't interfere with AI websites
-- **LZ compression** — Efficient storage using LZString compression
-- **Session history** — Last 10 sessions are saved for quick access
-- **Customizable** — Adjust capture settings, FAB position, and more
+1. Navigate to `chrome://extensions` (or `edge://extensions` / `brave://extensions` depending on your browser).
+2. Enable **Developer mode** using the toggle in the top-right corner.
+3. Click **Load unpacked**.
+4. Select the `relay/` folder from this repository.
 
 ---
 
-## Privacy
-
-**100% local. No servers, no accounts, no data leaves your device. Ever.**
-
-- All data is stored locally in your browser profile (`chrome.storage.local`)
-- No network requests are made by the extension
-- No analytics, telemetry, or crash reporting
-- No unique identifiers or fingerprinting
-- All fonts and icons are inlined (no external requests)
-
----
-
-## Building Icons
-
-To generate PNG icons from the SVG source:
-
-```bash
-npm install
-npm run build
-```
-
-This requires the `sharp` npm package and generates 16x16, 32x32, 48x48, and 128x128 PNG icons.
-
----
-
-## Project Structure
+### Project Structure
 
 ```
 relay/
-├── manifest.json              # Chrome/Edge/Brave (Manifest V3)
+├── manifest.json              # Extension Configuration (Manifest V3)
 ├── background.js              # Service worker
-├── browser-polyfill.js        # Cross-browser compatibility
+├── browser-polyfill.js        # Cross-browser compatibility layer
 ├── content/
 │   ├── content.js             # Main orchestrator
-│   ├── floatingUI.js          # FAB + floating panel
+│   ├── floatingUI.js          # User Interface controls
 │   ├── injector.js            # Context injection manager
-│   └── platforms/             # Per-platform scrapers & injectors
-├── panel/                     # Floating panel markup & styles
-├── popup/                     # Toolbar popup
+│   └── platforms/             # Platform-specific parsers
+├── panel/                     # Floating panel markup
+├── popup/                     # Toolbar popup UI
 ├── options/                   # Settings page
-├── utils/                     # Storage, sanitize, format, compress
-└── assets/                    # Icons & logo
+├── utils/                     # Storage, sanitization, and compression
+└── assets/                    # Icons and branding
 ```
 
 ---
 
-## 🤝 Contributing
+### Contributing
 
-Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](../../issues).
-If you want to contribute:
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Contributions, issues, and feature requests are always welcome.
+
+1. Fork the repository.
+2. Create your feature branch: `git checkout -b feature/amazing-feature`
+3. Commit your changes: `git commit -m 'Add some amazing feature'`
+4. Push to the branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request.
 
 ---
 
-## 📝 License
+### License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the LICENSE file for details.
