@@ -1,0 +1,124 @@
+{
+  "manifest_version": 3,
+  "name": "Relay - AI Context Bridge",
+  "version": "1.0.0",
+  "description": "Capture AI conversation context locally and continue it on another AI platform.",
+  "permissions": [
+    "storage",
+    "tabs",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://chat.openai.com/*",
+    "https://chatgpt.com/*",
+    "https://claude.ai/*",
+    "https://gemini.google.com/*",
+    "https://www.perplexity.ai/*",
+    "https://chat.deepseek.com/*",
+    "https://grok.x.ai/*",
+    "https://x.com/*",
+    "https://copilot.microsoft.com/*",
+    "https://www.meta.ai/*",
+    "https://chat.mistral.ai/*",
+    "https://huggingface.co/*",
+    "https://poe.com/*",
+    "https://chat.qwen.ai/*",
+    "https://tongyi.aliyun.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chat.openai.com/*",
+        "https://chatgpt.com/*",
+        "https://claude.ai/*",
+        "https://gemini.google.com/*",
+        "https://www.perplexity.ai/*",
+        "https://chat.deepseek.com/*",
+        "https://grok.x.ai/*",
+        "https://x.com/i/grok*",
+        "https://copilot.microsoft.com/*",
+        "https://www.meta.ai/*",
+        "https://chat.mistral.ai/*",
+        "https://huggingface.co/chat/*",
+        "https://poe.com/*",
+        "https://chat.qwen.ai/*",
+        "https://tongyi.aliyun.com/*"
+      ],
+      "js": [
+        "browser-polyfill.js",
+        "utils/storage.js",
+        "utils/sanitize.js",
+        "utils/formatter.js",
+        "utils/compress.js",
+        "content/platforms/index.js",
+        "content/platforms/chatgpt.js",
+        "content/platforms/claude.js",
+        "content/platforms/gemini.js",
+        "content/platforms/perplexity.js",
+        "content/platforms/deepseek.js",
+        "content/platforms/grok.js",
+        "content/platforms/copilot.js",
+        "content/platforms/metaai.js",
+        "content/platforms/mistral.js",
+        "content/platforms/huggingchat.js",
+        "content/platforms/poe.js",
+        "content/platforms/qwen.js",
+        "content/platforms/generic.js",
+        "content/injector.js",
+        "content/floatingUI.js",
+        "content/content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "assets/icon16.png",
+      "32": "assets/icon32.png",
+      "48": "assets/icon48.png",
+      "128": "assets/icon128.png"
+    },
+    "default_title": "Relay - AI Context Bridge"
+  },
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": true
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "assets/*"
+      ],
+      "matches": [
+        "https://chat.openai.com/*",
+        "https://chatgpt.com/*",
+        "https://claude.ai/*",
+        "https://gemini.google.com/*",
+        "https://www.perplexity.ai/*",
+        "https://chat.deepseek.com/*",
+        "https://grok.x.ai/*",
+        "https://x.com/*",
+        "https://copilot.microsoft.com/*",
+        "https://www.meta.ai/*",
+        "https://chat.mistral.ai/*",
+        "https://huggingface.co/*",
+        "https://poe.com/*",
+        "https://chat.qwen.ai/*",
+        "https://tongyi.aliyun.com/*"
+      ]
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none';"
+  },
+  "icons": {
+    "16": "assets/icon16.png",
+    "32": "assets/icon32.png",
+    "48": "assets/icon48.png",
+    "128": "assets/icon128.png"
+  }
+}

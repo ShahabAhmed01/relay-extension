@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Relay</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="header">
+    <div class="logo">
+      <div class="logo-icon">
+        <svg width="16" height="16" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 7C4 7 7 3 11 3C15 3 17 6 17 6" stroke="white" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+          <path d="M15 4L17 6L14 7" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <path d="M18 15C18 15 15 19 11 19C7 19 5 16 5 16" stroke="white" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+          <path d="M7 18L5 16L8 15" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <circle cx="11" cy="11" r="1.5" fill="white"/>
+        </svg>
+      </div>
+      <div class="logo-text">
+        <span class="logo-name">Relay</span>
+        <span class="logo-version">v1.0.0</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn-icon" id="btn-settings" title="Settings">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <section class="section">
+    <div class="section-label">Current Session</div>
+    <div class="session-card">
+      <div id="state-empty" class="state-empty">
+        <div class="empty-icon">◎</div>
+        <p class="empty-title">No active session</p>
+        <p class="empty-hint">Visit ChatGPT, Claude, or any AI site to begin</p>
+      </div>
+      <div id="state-active" class="state-active hidden">
+        <div class="session-meta">
+          <span class="platform-badge" id="popup-platform">—</span>
+          <span class="meta-dot">·</span>
+          <span class="meta-text" id="popup-count">0 msgs</span>
+          <span class="meta-dot">·</span>
+          <span class="meta-text" id="popup-time">—</span>
+        </div>
+        <div class="session-preview" id="popup-preview">No preview</div>
+        <div class="session-actions">
+          <button class="btn-primary" id="btn-open-panel">Open Panel ↗</button>
+          <button class="btn-ghost" id="btn-copy">Copy</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-label">Recent</div>
+    <div class="history-list" id="history-list">
+      <div id="history-empty" class="history-empty">
+        <span class="empty-hint">No history yet</span>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <button class="btn-text btn-danger" id="btn-clear">Clear Session</button>
+    <div class="footer-divider"></div>
+    <span class="footer-privacy">⚿ Local only · Never shared</span>
+  </footer>
+
+  <script src="../browser-polyfill.js"></script>
+  <script src="../utils/storage.js"></script>
+  <script src="../utils/compress.js"></script>
+  <script src="../utils/formatter.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

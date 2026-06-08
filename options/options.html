@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Relay — Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="options-container">
+    <header class="options-header">
+      <div class="header-content">
+        <svg width="28" height="28" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 7C4 7 7 3 11 3C15 3 17 6 17 6" stroke="white" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+          <path d="M15 4L17 6L14 7" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <path d="M18 15C18 15 15 19 11 19C7 19 5 16 5 16" stroke="white" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+          <path d="M7 18L5 16L8 15" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <circle cx="11" cy="11" r="1.5" fill="white"/>
+        </svg>
+        <h1>Relay Settings</h1>
+      </div>
+    </header>
+
+    <main class="options-main">
+      <nav class="options-nav">
+        <button class="nav-item active" data-section="capture">Capture</button>
+        <button class="nav-item" data-section="appearance">Appearance</button>
+        <button class="nav-item" data-section="privacy">Privacy & Data</button>
+      </nav>
+
+      <section id="section-capture" class="options-section active">
+        <h2>Capture Settings</h2>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <label class="setting-label">Auto-capture conversations</label>
+            <span class="setting-desc">Automatically capture messages on all supported AI sites</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="setting-autocapture" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <label class="setting-label">Max messages to capture</label>
+            <span class="setting-desc">Maximum number of messages to store per session</span>
+          </div>
+          <div class="slider-group">
+            <input type="range" id="setting-maxmessages" min="5" max="100" value="30" step="5">
+            <span class="slider-value" id="maxmessages-value">30</span>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <label class="setting-label">Include full history</label>
+            <span class="setting-desc">Include all messages instead of just the last N</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="setting-fullhistory">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <label class="setting-label">Confirm before switching</label>
+            <span class="setting-desc">Show confirmation dialog before switching platforms</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="setting-confirm">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </section>
+
+      <section id="section-appearance" class="options-section">
+        <h2>Appearance</h2>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <label class="setting-label">Theme</label>
+            <span class="setting-desc">Choose your preferred color scheme</span>
+          </div>
+          <select id="setting-theme" class="select-input">
+            <option value="system">System Auto</option>
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <label class="setting-label">FAB position</label>
+            <span class="setting-desc">Where to show the floating action button</span>
+          </div>
+          <select id="setting-fabposition" class="select-input">
+            <option value="bottom-right">Bottom-Right</option>
+            <option value="bottom-left">Bottom-Left</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <label class="setting-label">FAB size</label>
+            <span class="setting-desc">Size of the floating action button</span>
+          </div>
+          <select id="setting-fabsize" class="select-input">
+            <option value="normal">Normal</option>
+            <option value="large">Large</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <label class="setting-label">Show floating button</label>
+            <span class="setting-desc">Display the Relay button on AI sites</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="setting-showfab" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </section>
+
+      <section id="section-privacy" class="options-section">
+        <h2>Privacy & Data</h2>
+
+        <div class="privacy-notice">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <div>
+            <p class="notice-title">100% Local Storage</p>
+            <p class="notice-text">All data is stored locally on your device. Relay never sends data to any server, ever.</p>
+          </div>
+        </div>
+
+        <div class="storage-info">
+          <div class="storage-header">
+            <span class="storage-label">Storage Usage</span>
+            <span class="storage-value" id="storage-usage">0 KB</span>
+          </div>
+          <div class="storage-bar">
+            <div class="storage-fill" id="storage-fill" style="width:0%"></div>
+          </div>
+          <span class="storage-hint">7 MB warning threshold</span>
+        </div>
+
+        <div class="data-actions">
+          <button class="btn-secondary" id="btn-export">Export All Sessions as JSON</button>
+          <button class="btn-secondary" id="btn-clear-session">Clear Current Session</button>
+          <button class="btn-secondary" id="btn-clear-history">Clear All History</button>
+          <button class="btn-danger" id="btn-reset">Reset to Defaults</button>
+        </div>
+      </section>
+    </main>
+
+    <footer class="options-footer">
+      <span>Relay v1.0.0</span>
+      <span>·</span>
+      <span>Made with care for AI power users</span>
+    </footer>
+  </div>
+
+  <script src="../browser-polyfill.js"></script>
+  <script src="../utils/storage.js"></script>
+  <script src="../utils/compress.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>
