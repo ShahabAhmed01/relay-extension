@@ -33,12 +33,10 @@ Relay runs silently in the background, capturing your conversation history. When
 
 ## How to Use
 
-1. **Visit any supported AI** — ChatGPT, Claude, Gemini, Perplexity, DeepSeek, Grok, Copilot, Meta AI, Mistral, HuggingChat, Poe, or Qwen
-2. **Chat normally** — Relay captures your conversation automatically in the background
-3. **Hit a limit?** — Click the **Relay button** (bottom-right corner of the page)
-4. **Choose a platform** — Click any platform in the "Continue on" grid
-5. **Continue seamlessly** — A new tab opens with your full conversation history pre-loaded into the input field
-6. **Review and send** — The new AI knows exactly where you left off
+1. **Chat like normal:** Go to ChatGPT, Claude, or any supported AI and start chatting. Relay saves everything automatically in the background.
+2. **Hit a limit?** Click the floating **Relay button** in the bottom corner of your screen.
+3. **Pick a new AI:** Choose the AI you want to switch to from the menu.
+4. **Keep chatting!** A new tab opens with your entire conversation already typed into the box. Just hit send and continue exactly where you left off!
 
 ---
 
