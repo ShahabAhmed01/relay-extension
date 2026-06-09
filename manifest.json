@@ -104,11 +104,11 @@
         "https://chat.deepseek.com/*",
         "https://grok.com/*",
         "https://grok.x.ai/*",
-        "https://x.com/i/grok*",
+        "https://x.com/*",
         "https://copilot.microsoft.com/*",
         "https://www.meta.ai/*",
         "https://chat.mistral.ai/*",
-        "https://huggingface.co/chat/*",
+        "https://huggingface.co/*",
         "https://poe.com/*",
         "https://chat.qwen.ai/*",
         "https://tongyi.aliyun.com/*"
