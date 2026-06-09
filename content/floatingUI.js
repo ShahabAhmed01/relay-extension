@@ -635,6 +635,73 @@ const FloatingUI = (() => {
         from { opacity: 1; transform: translateY(0) scale(1); }
         to { opacity: 0; transform: translateY(10px) scale(0.97); }
       }
+
+      .relay-confirm-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--relay-radius-lg);
+        z-index: 10;
+        animation: relay-panel-in 150ms ease forwards;
+      }
+
+      .relay-confirm-box {
+        background: var(--relay-bg-secondary);
+        border: 1px solid var(--relay-border);
+        border-radius: var(--relay-radius-md);
+        padding: 20px;
+        max-width: 280px;
+        text-align: center;
+      }
+
+      .relay-confirm-box p {
+        font-size: 13px;
+        color: var(--relay-text-primary);
+        margin-bottom: 16px;
+        line-height: 1.5;
+      }
+
+      .relay-confirm-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+      }
+
+      .relay-confirm-yes {
+        padding: 8px 20px;
+        background: var(--relay-accent-mid);
+        color: white;
+        border: none;
+        border-radius: var(--relay-radius-sm);
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: var(--relay-font);
+        transition: background 150ms ease;
+      }
+
+      .relay-confirm-yes:hover { background: var(--relay-accent-from); }
+
+      .relay-confirm-no {
+        padding: 8px 20px;
+        background: transparent;
+        border: 1px solid var(--relay-border);
+        border-radius: var(--relay-radius-sm);
+        color: var(--relay-text-secondary);
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        font-family: var(--relay-font);
+        transition: all 150ms ease;
+      }
+
+      .relay-confirm-no:hover {
+        background: var(--relay-bg-tertiary);
+        color: var(--relay-text-primary);
+      }
     `;
   }
 
@@ -754,9 +821,8 @@ const FloatingUI = (() => {
         const settings = await RelayStorage.getSettings();
         
         if (settings && settings.confirmBeforeSwitch) {
-          if (!confirm('Switch to ' + platform.name + ' and bring your conversation context?')) {
-            return;
-          }
+          const confirmed = await _showConfirm('Switch to ' + platform.name + ' and bring your conversation context?');
+          if (!confirmed) return;
         }
 
         const formatted = RelayFormatter.format(session, settings);
@@ -865,6 +931,51 @@ const FloatingUI = (() => {
     const pct = Math.min((usage.kb / 7000) * 100, 100);
     if (fill) fill.style.width = pct + '%';
     if (footerText) footerText.textContent = usage.kb + ' KB · ' + (session ? session.messageCount : 0) + ' messages stored';
+  }
+
+  function _showConfirm(message) {
+    return new Promise((resolve) => {
+      if (!_shadow) { resolve(false); return; }
+      const panel = _shadow.getElementById('relay-panel');
+      if (!panel) { resolve(false); return; }
+
+      const overlay = document.createElement('div');
+      overlay.className = 'relay-confirm-overlay';
+
+      const box = document.createElement('div');
+      box.className = 'relay-confirm-box';
+
+      const msg = document.createElement('p');
+      msg.textContent = message;
+
+      const actions = document.createElement('div');
+      actions.className = 'relay-confirm-actions';
+
+      const yesBtn = document.createElement('button');
+      yesBtn.className = 'relay-confirm-yes';
+      yesBtn.textContent = 'Switch';
+
+      const noBtn = document.createElement('button');
+      noBtn.className = 'relay-confirm-no';
+      noBtn.textContent = 'Cancel';
+
+      function cleanup(result) {
+        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        resolve(result);
+      }
+
+      yesBtn.addEventListener('click', () => cleanup(true));
+      noBtn.addEventListener('click', () => cleanup(false));
+
+      actions.appendChild(noBtn);
+      actions.appendChild(yesBtn);
+      box.appendChild(msg);
+      box.appendChild(actions);
+      overlay.appendChild(box);
+      panel.appendChild(overlay);
+
+      noBtn.focus();
+    });
   }
 
   function _togglePanel() {

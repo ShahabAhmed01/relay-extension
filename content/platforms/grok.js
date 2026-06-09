@@ -4,6 +4,7 @@
 const GrokScraper = (() => {
   let _observer = null;
   let _callback = null;
+  let _debounceTimer = null;
 
   function scrapeMessages() {
     const messages = [];
@@ -32,15 +33,19 @@ const GrokScraper = (() => {
     _callback = callback;
     const container = document.querySelector('main [class*="conversation"], main') || document.body;
     _observer = new MutationObserver(() => {
-      if (_callback) {
-        const msgs = scrapeMessages();
-        if (msgs.length > 0) _callback(msgs);
-      }
+      clearTimeout(_debounceTimer);
+      _debounceTimer = setTimeout(() => {
+        if (_callback) {
+          const msgs = scrapeMessages();
+          if (msgs.length > 0) _callback(msgs);
+        }
+      }, 300);
     });
     _observer.observe(container, { childList: true, subtree: true });
   }
 
   function disconnect() {
+    clearTimeout(_debounceTimer);
     if (_observer) { _observer.disconnect(); _observer = null; }
     _callback = null;
   }

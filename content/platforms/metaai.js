@@ -4,6 +4,7 @@
 const MetaAIScraper = (() => {
   let _observer = null;
   let _callback = null;
+  let _debounceTimer = null;
 
   function scrapeMessages() {
     const messages = [];
@@ -41,15 +42,19 @@ const MetaAIScraper = (() => {
     _callback = callback;
     const container = document.querySelector('[role="main"]') || document.body;
     _observer = new MutationObserver(() => {
-      if (_callback) {
-        const msgs = scrapeMessages();
-        if (msgs.length > 0) _callback(msgs);
-      }
+      clearTimeout(_debounceTimer);
+      _debounceTimer = setTimeout(() => {
+        if (_callback) {
+          const msgs = scrapeMessages();
+          if (msgs.length > 0) _callback(msgs);
+        }
+      }, 300);
     });
     _observer.observe(container, { childList: true, subtree: true });
   }
 
   function disconnect() {
+    clearTimeout(_debounceTimer);
     if (_observer) { _observer.disconnect(); _observer = null; }
     _callback = null;
   }
@@ -73,7 +78,8 @@ const MetaAIInjector = (() => {
     if (!el) return false;
     if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
       try {
-        const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+        const proto = el.tagName === 'INPUT' ? window.HTMLInputElement.prototype : window.HTMLTextAreaElement.prototype;
+        const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
         setter.call(el, text);
       } catch (e) {
         el.value = text;

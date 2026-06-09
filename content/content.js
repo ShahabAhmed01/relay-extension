@@ -5,7 +5,6 @@
 
 (async function RelayContentInit() {
   if (typeof RelayStorage === 'undefined' || typeof RelayPlatforms === 'undefined') {
-    console.warn('[Relay] Required modules not loaded.');
     return;
   }
 
@@ -13,15 +12,11 @@
   const platform = RelayPlatforms.detectPlatform(hostname);
 
   if (!platform) {
-    console.log('[Relay] Not on a supported AI platform.');
     return;
   }
 
-  console.log('[Relay] Detected platform:', platform.name);
-
   const settings = await RelayStorage.getSettings();
   if (!settings.autoCapture) {
-    console.log('[Relay] Auto-capture disabled.');
     if (typeof FloatingUI !== 'undefined') {
       await FloatingUI.init();
     }

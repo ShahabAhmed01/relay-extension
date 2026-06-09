@@ -4,13 +4,12 @@
 const ClaudeScraper = (() => {
   let _observer = null;
   let _callback = null;
+  let _debounceTimer = null;
 
   function scrapeMessages() {
     const messages = [];
     let index = 0;
 
-    const humanMsgs = document.querySelectorAll('[data-testid="human-message"], .human-turn .text');
-    const assistantMsgs = document.querySelectorAll('[data-testid="assistant-message"], .assistant-turn .prose');
 
     const allMsgs = document.querySelectorAll('[data-testid="human-message"], [data-testid="assistant-message"]');
     if (allMsgs.length > 0) {
@@ -50,15 +49,19 @@ const ClaudeScraper = (() => {
     _callback = callback;
     const container = document.querySelector('.flex-1 main, [class*="conversation"]') || document.body;
     _observer = new MutationObserver(() => {
-      if (_callback) {
-        const msgs = scrapeMessages();
-        if (msgs.length > 0) _callback(msgs);
-      }
+      clearTimeout(_debounceTimer);
+      _debounceTimer = setTimeout(() => {
+        if (_callback) {
+          const msgs = scrapeMessages();
+          if (msgs.length > 0) _callback(msgs);
+        }
+      }, 300);
     });
     _observer.observe(container, { childList: true, subtree: true });
   }
 
   function disconnect() {
+    clearTimeout(_debounceTimer);
     if (_observer) { _observer.disconnect(); _observer = null; }
     _callback = null;
   }

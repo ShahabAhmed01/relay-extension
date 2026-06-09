@@ -82,7 +82,7 @@ relay/
 │   ├── floatingUI.js          # User Interface controls
 │   ├── injector.js            # Context injection manager
 │   └── platforms/             # Platform-specific parsers
-├── panel/                     # Floating panel markup
+
 ├── popup/                     # Toolbar popup UI
 ├── options/                   # Settings page
 ├── utils/                     # Storage, sanitization, and compression

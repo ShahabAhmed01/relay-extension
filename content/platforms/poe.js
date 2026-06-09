@@ -4,6 +4,7 @@
 const PoeScraper = (() => {
   let _observer = null;
   let _callback = null;
+  let _debounceTimer = null;
 
   function scrapeMessages() {
     const messages = [];
@@ -14,7 +15,7 @@ const PoeScraper = (() => {
       '[class*="humanMessage"], [class*="Message_humanMessage"], [class*="botMessage"], [class*="Message_botMessage"]'
     );
     allNodes.forEach((node) => {
-      const isUser = node.className.includes('human');
+      const isUser = (typeof node.className === 'string' && node.className.includes('human'));
       const role = isUser ? 'user' : 'assistant';
       const text = node.textContent.trim();
       if (text && (role === 'user' || text.length > 3) && !seen.has(text)) {
@@ -38,15 +39,19 @@ const PoeScraper = (() => {
     _callback = callback;
     const container = document.querySelector('[class*="ChatMessagesView"], main') || document.body;
     _observer = new MutationObserver(() => {
-      if (_callback) {
-        const msgs = scrapeMessages();
-        if (msgs.length > 0) _callback(msgs);
-      }
+      clearTimeout(_debounceTimer);
+      _debounceTimer = setTimeout(() => {
+        if (_callback) {
+          const msgs = scrapeMessages();
+          if (msgs.length > 0) _callback(msgs);
+        }
+      }, 300);
     });
     _observer.observe(container, { childList: true, subtree: true });
   }
 
   function disconnect() {
+    clearTimeout(_debounceTimer);
     if (_observer) { _observer.disconnect(); _observer = null; }
     _callback = null;
   }
@@ -71,7 +76,8 @@ const PoeInjector = (() => {
     if (!el) return false;
     if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
       try {
-        const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+        const proto = el.tagName === 'INPUT' ? window.HTMLInputElement.prototype : window.HTMLTextAreaElement.prototype;
+        const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
         setter.call(el, text);
       } catch (e) {
         el.value = text;

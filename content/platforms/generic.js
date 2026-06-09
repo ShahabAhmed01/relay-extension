@@ -4,6 +4,7 @@
 const GenericScraper = (() => {
   let _observer = null;
   let _callback = null;
+  let _debounceTimer = null;
 
   function _findChatContainer() {
     const candidates = document.querySelectorAll('main, [role="main"], [class*="chat"], [class*="conversation"], [class*="message"]');
@@ -18,7 +19,7 @@ const GenericScraper = (() => {
   }
 
   function _classifyElement(el) {
-    const classes = (el.className || '').toLowerCase();
+    const classes = (typeof el.className === 'string' ? el.className : '').toLowerCase();
     const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
     const dataRole = (el.getAttribute('data-role') || '').toLowerCase();
     const combined = classes + ' ' + ariaLabel + ' ' + dataRole;
@@ -78,15 +79,19 @@ const GenericScraper = (() => {
     _callback = callback;
     const container = _findChatContainer();
     _observer = new MutationObserver(() => {
-      if (_callback) {
-        const msgs = scrapeMessages();
-        if (msgs.length > 0) _callback(msgs);
-      }
+      clearTimeout(_debounceTimer);
+      _debounceTimer = setTimeout(() => {
+        if (_callback) {
+          const msgs = scrapeMessages();
+          if (msgs.length > 0) _callback(msgs);
+        }
+      }, 300);
     });
     _observer.observe(container, { childList: true, subtree: true });
   }
 
   function disconnect() {
+    clearTimeout(_debounceTimer);
     if (_observer) { _observer.disconnect(); _observer = null; }
     _callback = null;
   }

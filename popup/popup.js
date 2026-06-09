@@ -6,6 +6,25 @@
 (async function() {
   const api = (typeof browser !== 'undefined' && browser.runtime) ? browser : chrome;
 
+  // Apply saved theme
+  try {
+    const settings = await RelayStorage.getSettings();
+    const theme = settings.theme || 'system';
+    if (theme === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else if (theme === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+  } catch (_e) { /* theme is cosmetic */ }
+
+  // Display version from manifest
+  const versionEl = document.querySelector('.logo-version');
+  if (versionEl && api.runtime && api.runtime.getManifest) {
+    versionEl.textContent = 'v' + api.runtime.getManifest().version;
+  }
+
   const stateEmpty = document.getElementById('state-empty');
   const stateActive = document.getElementById('state-active');
   const popupPlatform = document.getElementById('popup-platform');

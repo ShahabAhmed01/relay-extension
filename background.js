@@ -30,7 +30,6 @@
     'chat.deepseek.com',
     'grok.com',
     'grok.x.ai',
-    'x.com',
     'copilot.microsoft.com',
     'www.meta.ai',
     'chat.mistral.ai',
@@ -71,7 +70,12 @@
   function isSupportedUrl(url) {
     try {
       const parsed = new URL(url);
-      return parsed.protocol === 'https:' && isAIHost(parsed.hostname);
+      if (parsed.protocol !== 'https:') return false;
+      // x.com is only supported for the Grok path
+      if (parsed.hostname === 'x.com') {
+        return parsed.pathname.startsWith('/i/grok');
+      }
+      return isAIHost(parsed.hostname);
     } catch (_e) {
       return false;
     }

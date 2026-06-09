@@ -4,6 +4,7 @@
 const GeminiScraper = (() => {
   let _observer = null;
   let _callback = null;
+  let _debounceTimer = null;
 
   function scrapeMessages() {
     const messages = [];
@@ -14,9 +15,10 @@ const GeminiScraper = (() => {
     );
 
     allTurns.forEach((el) => {
+      const classes = typeof el.className === 'string' ? el.className : '';
       const isUser = el.tagName === 'USER-QUERY' ||
-                     el.className.includes('query') ||
-                     el.className.includes('human');
+                     classes.includes('query') ||
+                     classes.includes('human');
       const contentEl = el.querySelector('.query-text, .query-content, .response-content, .markdown') || el;
       const text = contentEl.textContent.trim();
       if (text && text.length > 2) {
@@ -53,15 +55,19 @@ const GeminiScraper = (() => {
     _callback = callback;
     const container = document.querySelector('chat-window, .conversation-container, main') || document.body;
     _observer = new MutationObserver(() => {
-      if (_callback) {
-        const msgs = scrapeMessages();
-        if (msgs.length > 0) _callback(msgs);
-      }
+      clearTimeout(_debounceTimer);
+      _debounceTimer = setTimeout(() => {
+        if (_callback) {
+          const msgs = scrapeMessages();
+          if (msgs.length > 0) _callback(msgs);
+        }
+      }, 300);
     });
     _observer.observe(container, { childList: true, subtree: true });
   }
 
   function disconnect() {
+    clearTimeout(_debounceTimer);
     if (_observer) { _observer.disconnect(); _observer = null; }
     _callback = null;
   }

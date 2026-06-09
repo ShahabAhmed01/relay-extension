@@ -1,10 +1,8 @@
 /**
- * Relay — Browser Polyfill
- * webextension-polyfill v0.10.0 — Mozilla Public License 2.0
- * Provides unified `browser.*` API across Chrome and Firefox.
- *
- * This is a lightweight inline polyfill that wraps chrome.* APIs
+ * Relay — Browser API Compatibility Layer
+ * Custom lightweight polyfill that wraps chrome.* APIs
  * to return Promises (matching the browser.* API contract).
+ * MIT License — Copyright (c) 2026 Shahab Ahmed
  */
 
 (function(global) {

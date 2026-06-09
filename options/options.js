@@ -4,6 +4,12 @@
  */
 
 (async function() {
+  // Display version from manifest
+  const footerVersion = document.querySelector('.options-footer span:first-child');
+  if (footerVersion && chrome.runtime && chrome.runtime.getManifest) {
+    footerVersion.textContent = 'Relay v' + chrome.runtime.getManifest().version;
+  }
+
   const navItems = document.querySelectorAll('.nav-item');
   const sections = document.querySelectorAll('.options-section');
 
