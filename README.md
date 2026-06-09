@@ -42,6 +42,15 @@ Pick up exactly where you left off.
 
 ---
 
+### Context Sharing & Settings
+
+By default, Relay is optimized to avoid hitting input character limits on new AI platforms when transferring long conversations.
+
+* **Default Behavior:** Relay transfers the **last 30 messages** of your active conversation. It transfers **plain text only** (uploaded files, PDFs, images, and backend system prompts are not transferred).
+* **Share Entire History:** If you want to transfer every single message from the very beginning of the chat, right-click the Relay extension icon (🧩) in your browser toolbar, open **Options**, and toggle **"Include full history"** to ON.
+
+---
+
 ### Supported Platforms
 
 | Platform | Website |
