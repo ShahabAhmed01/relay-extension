@@ -1,118 +1,33 @@
-// SELECTOR_VERSION: 2026-Q2
-// Relay — Gemini Platform Scraper & Injector
-
-const GeminiScraper = (() => {
-  let _observer = null;
-  let _callback = null;
-  let _debounceTimer = null;
-
-  function scrapeMessages() {
-    const messages = [];
-    let index = 0;
-
-    const allTurns = document.querySelectorAll(
-      'user-query, model-response, .query-container, .response-container, [class*="conversation-turn"]'
-    );
-
-    allTurns.forEach((el) => {
-      const classes = typeof el.className === 'string' ? el.className : '';
-      const isUser = el.tagName === 'USER-QUERY' ||
-                     classes.includes('query') ||
-                     classes.includes('human');
-      const contentEl = el.querySelector('.query-text, .query-content, .response-content, .markdown') || el;
-      const text = contentEl.textContent.trim();
-      if (text && text.length > 2) {
-        messages.push({ role: isUser ? 'user' : 'assistant', content: text, index: index++ });
-      }
+// SELECTOR_VERSION: 2026-Q3
+// Relay v1.1.0 — Gemini scraper & injector (Base factory).
+(function () {
+  'use strict';
+  function scrape() {
+    var D = (typeof RelayDOM !== 'undefined') ? RelayDOM : null;
+    var get = D ? D.textOf : function (el) { return (el.textContent || '').trim(); };
+    var out = []; var seen = new Set();
+    document.querySelectorAll('user-query, model-response, .query-container, .response-container, [class*="conversation-turn"], [class*="message-content"]').forEach(function (el) {
+      var tag = el.tagName || '';
+      var c = (typeof el.className === 'string' ? el.className : '').toLowerCase();
+      var isUser = tag === 'USER-QUERY' || /query|human|user/.test(c);
+      var inner = el.querySelector('.query-text, .query-content, .response-content, .markdown, [class*="markdown"]') || el;
+      var text = get(inner);
+      if (!text || text.length < 3 || seen.has(text)) return;
+      seen.add(text);
+      out.push({ role: isUser ? 'user' : 'assistant', content: text, index: out.length });
     });
-
-    if (messages.length === 0) {
-      const container = document.querySelector('chat-window, .conversation-container, main');
-      if (container) {
-        const allDivs = container.querySelectorAll('[class*="message"], [class*="turn"]');
-        allDivs.forEach((div) => {
-          const isUser = div.className.includes('user') || div.className.includes('human') || div.className.includes('query');
-          const text = div.textContent.trim();
-          if (text && text.length > 2) {
-            messages.push({ role: isUser ? 'user' : 'assistant', content: text, index: index++ });
-          }
-        });
-      }
-    }
-
-    if (messages.length === 0 && typeof GenericScraper !== 'undefined') {
-      return GenericScraper.scrapeMessages();
-    }
-    return messages;
+    return out;
   }
-
-  function hasConversation() {
+  function has() {
     return document.querySelectorAll('user-query, model-response, .query-text, .response-content').length > 0;
   }
-
-  function observe(callback) {
-    if (_observer) { _observer.disconnect(); _observer = null; }
-    _callback = callback;
-    const container = document.querySelector('chat-window, .conversation-container, main') || document.body;
-    _observer = new MutationObserver(() => {
-      clearTimeout(_debounceTimer);
-      _debounceTimer = setTimeout(() => {
-        if (_callback) {
-          const msgs = scrapeMessages();
-          if (msgs.length > 0) _callback(msgs);
-        }
-      }, 300);
-    });
-    _observer.observe(container, { childList: true, subtree: true });
+  function container() { return document.querySelector('chat-window, .conversation-container, main') || document.body; }
+  if (typeof RelayBase !== 'undefined') {
+    RelayBase.makeScraper({ scrape: scrape, hasConversation: has, container: container }, 'GeminiScraper');
+    RelayBase.makeInjector({
+      inputs: ['.ql-editor[contenteditable]', 'rich-textarea .ql-editor', '[contenteditable="true"]', 'textarea'],
+      submits: ['button.send-button', '[aria-label="Send message"]', 'button[aria-label="Send"]'],
+    }, 'GeminiInjector');
   }
-
-  function disconnect() {
-    clearTimeout(_debounceTimer);
-    if (_observer) { _observer.disconnect(); _observer = null; }
-    _callback = null;
-  }
-
-  return { scrapeMessages, hasConversation, observe, disconnect };
 })();
 
-const GeminiInjector = (() => {
-  function _getInput() {
-    return document.querySelector('.ql-editor[contenteditable]') ||
-           document.querySelector('rich-textarea .ql-editor') ||
-           document.querySelector('[contenteditable="true"]');
-  }
-
-  function _getSubmitBtn() {
-    return document.querySelector('button.send-button') ||
-           document.querySelector('[aria-label="Send message"]') ||
-           document.querySelector('button[aria-label="Send"]');
-  }
-
-  async function injectText(text) {
-    const el = _getInput();
-    if (!el) return false;
-    el.focus();
-    document.execCommand('selectAll', false, null);
-    document.execCommand('insertText', false, text);
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    return true;
-  }
-
-  async function submit() {
-    const btn = _getSubmitBtn();
-    if (btn && !btn.disabled) { btn.click(); return true; }
-    return false;
-  }
-
-  function isReady() {
-    return _getInput() !== null;
-  }
-
-  return { injectText, submit, isReady };
-})();
-
-if (typeof window !== 'undefined') {
-  window.GeminiScraper = GeminiScraper;
-  window.GeminiInjector = GeminiInjector;
-}

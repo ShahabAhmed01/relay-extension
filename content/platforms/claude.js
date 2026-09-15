@@ -1,111 +1,40 @@
-// SELECTOR_VERSION: 2026-Q2
-// Relay — Claude Platform Scraper & Injector
-
-const ClaudeScraper = (() => {
-  let _observer = null;
-  let _callback = null;
-  let _debounceTimer = null;
-
-  function scrapeMessages() {
-    const messages = [];
-    let index = 0;
-
-
-    const allMsgs = document.querySelectorAll('[data-testid="human-message"], [data-testid="assistant-message"]');
-    if (allMsgs.length > 0) {
-      allMsgs.forEach((msg) => {
-        const isHuman = msg.getAttribute('data-testid') === 'human-message';
-        const text = msg.textContent.trim();
-        if (text) {
-          messages.push({ role: isHuman ? 'user' : 'assistant', content: text, index: index++ });
-        }
-      });
-    }
-
-    if (messages.length === 0) {
-      const turns = document.querySelectorAll('.human-turn, .assistant-turn');
-      turns.forEach((turn) => {
-        const isHuman = turn.classList.contains('human-turn');
-        const contentEl = turn.querySelector('.text, .prose') || turn;
-        const text = contentEl.textContent.trim();
-        if (text) {
-          messages.push({ role: isHuman ? 'user' : 'assistant', content: text, index: index++ });
-        }
-      });
-    }
-
-    if (messages.length === 0 && typeof GenericScraper !== 'undefined') {
-      return GenericScraper.scrapeMessages();
-    }
-    return messages;
+// SELECTOR_VERSION: 2026-Q3
+// Relay v1.1.0 — Claude scraper & injector (Base factory).
+(function () {
+  'use strict';
+  function scrape() {
+    var D = (typeof RelayDOM !== 'undefined') ? RelayDOM : null;
+    var get = D ? D.textOf : function (el) { return (el.textContent || '').trim(); };
+    var out = []; var seen = new Set();
+    var nodes = document.querySelectorAll('[data-testid="human-message"], [data-testid="assistant-message"], [data-is-streaming], .human-turn, .assistant-turn, [class*="ChatMessage"]');
+    nodes.forEach(function (el) {
+      var t = el.getAttribute('data-testid') || '';
+      var isHuman = t === 'human-message' || el.classList.contains('human-turn');
+      var isAI = t === 'assistant-message' || el.classList.contains('assistant-turn');
+      if (!isHuman && !isAI) {
+        var c = (typeof el.className === 'string' ? el.className : '').toLowerCase();
+        if (/human|user|you-said/.test(c)) isHuman = true;
+        else if (/assistant|ai-|claude|response/.test(c)) isAI = true;
+        else return;
+      }
+      var inner = el.querySelector('.text, .prose, [class*="markdown"], [class*="content"]') || el;
+      var text = get(inner);
+      if (!text || seen.has(text)) return;
+      seen.add(text);
+      out.push({ role: isHuman ? 'user' : 'assistant', content: text, index: out.length });
+    });
+    return out;
   }
-
-  function hasConversation() {
+  function has() {
     return document.querySelectorAll('[data-testid="human-message"], [data-testid="assistant-message"], .human-turn, .assistant-turn').length > 0;
   }
-
-  function observe(callback) {
-    if (_observer) { _observer.disconnect(); _observer = null; }
-    _callback = callback;
-    const container = document.querySelector('.flex-1 main, [class*="conversation"]') || document.body;
-    _observer = new MutationObserver(() => {
-      clearTimeout(_debounceTimer);
-      _debounceTimer = setTimeout(() => {
-        if (_callback) {
-          const msgs = scrapeMessages();
-          if (msgs.length > 0) _callback(msgs);
-        }
-      }, 300);
-    });
-    _observer.observe(container, { childList: true, subtree: true });
+  function container() { return document.querySelector('main, [class*="conversation"]') || document.body; }
+  if (typeof RelayBase !== 'undefined') {
+    RelayBase.makeScraper({ scrape: scrape, hasConversation: has, container: container }, 'ClaudeScraper');
+    RelayBase.makeInjector({
+      inputs: ['[contenteditable="true"][enterkeyhint="enter"]', '.ProseMirror', 'div[contenteditable="true"]', 'textarea'],
+      submits: ['[aria-label="Send Message"]', 'button[type="button"][data-state]', 'button[aria-label="Send"]'],
+    }, 'ClaudeInjector');
   }
-
-  function disconnect() {
-    clearTimeout(_debounceTimer);
-    if (_observer) { _observer.disconnect(); _observer = null; }
-    _callback = null;
-  }
-
-  return { scrapeMessages, hasConversation, observe, disconnect };
 })();
 
-const ClaudeInjector = (() => {
-  function _getInput() {
-    return document.querySelector('[contenteditable="true"][enterkeyhint="enter"]') ||
-           document.querySelector('.ProseMirror') ||
-           document.querySelector('[contenteditable="true"]');
-  }
-
-  function _getSubmitBtn() {
-    return document.querySelector('[aria-label="Send Message"]') ||
-           document.querySelector('button[type="button"][data-state]');
-  }
-
-  async function injectText(text) {
-    const el = _getInput();
-    if (!el) return false;
-    el.focus();
-    document.execCommand('selectAll', false, null);
-    document.execCommand('insertText', false, text);
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    return true;
-  }
-
-  async function submit() {
-    const btn = _getSubmitBtn();
-    if (btn && !btn.disabled) { btn.click(); return true; }
-    return false;
-  }
-
-  function isReady() {
-    return _getInput() !== null;
-  }
-
-  return { injectText, submit, isReady };
-})();
-
-if (typeof window !== 'undefined') {
-  window.ClaudeScraper = ClaudeScraper;
-  window.ClaudeInjector = ClaudeInjector;
-}

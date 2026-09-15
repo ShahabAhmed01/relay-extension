@@ -1,8 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Relay - AI Context Bridge",
-  "version": "1.0.0",
-  "description": "Capture AI conversation context locally and continue it on another AI platform.",
+  "version": "1.1.0",
+  "description": "Capture AI conversation context locally and continue it on another AI platform. 100% local, no servers.",
+  "author": "Shahab Ahmed",
+  "minimum_chrome_version": "116",
   "permissions": [
     "storage",
     "tabs",
@@ -13,18 +15,25 @@
     "https://chatgpt.com/*",
     "https://claude.ai/*",
     "https://gemini.google.com/*",
+    "https://aistudio.google.com/*",
     "https://www.perplexity.ai/*",
+    "https://perplexity.ai/*",
     "https://chat.deepseek.com/*",
     "https://grok.com/*",
     "https://grok.x.ai/*",
     "https://x.com/i/grok*",
     "https://copilot.microsoft.com/*",
+    "https://copilot.cloud.microsoft/*",
     "https://www.meta.ai/*",
+    "https://meta.ai/*",
     "https://chat.mistral.ai/*",
     "https://huggingface.co/chat/*",
     "https://poe.com/*",
     "https://chat.qwen.ai/*",
-    "https://tongyi.aliyun.com/*"
+    "https://tongyi.aliyun.com/*",
+    "https://you.com/*",
+    "https://www.blackbox.ai/*",
+    "https://www.phind.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -36,18 +45,25 @@
         "https://chatgpt.com/*",
         "https://claude.ai/*",
         "https://gemini.google.com/*",
+        "https://aistudio.google.com/*",
         "https://www.perplexity.ai/*",
+        "https://perplexity.ai/*",
         "https://chat.deepseek.com/*",
         "https://grok.com/*",
         "https://grok.x.ai/*",
         "https://x.com/i/grok*",
         "https://copilot.microsoft.com/*",
+        "https://copilot.cloud.microsoft/*",
         "https://www.meta.ai/*",
+        "https://meta.ai/*",
         "https://chat.mistral.ai/*",
         "https://huggingface.co/chat/*",
         "https://poe.com/*",
         "https://chat.qwen.ai/*",
-        "https://tongyi.aliyun.com/*"
+        "https://tongyi.aliyun.com/*",
+        "https://you.com/*",
+        "https://www.blackbox.ai/*",
+        "https://www.phind.com/*"
       ],
       "js": [
         "browser-polyfill.js",
@@ -55,25 +71,22 @@
         "utils/sanitize.js",
         "utils/formatter.js",
         "utils/compress.js",
+        "utils/dom.js",
         "content/platforms/index.js",
+        "content/platforms/base.js",
+        "content/platforms/generic.js",
         "content/platforms/chatgpt.js",
         "content/platforms/claude.js",
         "content/platforms/gemini.js",
-        "content/platforms/perplexity.js",
-        "content/platforms/deepseek.js",
-        "content/platforms/grok.js",
-        "content/platforms/copilot.js",
-        "content/platforms/metaai.js",
-        "content/platforms/mistral.js",
-        "content/platforms/huggingchat.js",
-        "content/platforms/poe.js",
-        "content/platforms/qwen.js",
-        "content/platforms/generic.js",
+        "content/platforms/adapters.js",
+        "content/platforms/adapters2.js",
+        "content/platforms/adapters3.js",
         "content/injector.js",
         "content/floatingUI.js",
         "content/content.js"
       ],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "all_frames": false
     }
   ],
   "action": {
@@ -90,6 +103,15 @@
     "page": "options/options.html",
     "open_in_tab": true
   },
+  "commands": {
+    "toggle-panel": {
+      "suggested_key": {
+        "default": "Alt+R",
+        "mac": "Alt+R"
+      },
+      "description": "Toggle Relay panel on supported AI sites"
+    }
+  },
   "web_accessible_resources": [
     {
       "resources": [
@@ -100,18 +122,25 @@
         "https://chatgpt.com/*",
         "https://claude.ai/*",
         "https://gemini.google.com/*",
+        "https://aistudio.google.com/*",
         "https://www.perplexity.ai/*",
+        "https://perplexity.ai/*",
         "https://chat.deepseek.com/*",
         "https://grok.com/*",
         "https://grok.x.ai/*",
         "https://x.com/*",
         "https://copilot.microsoft.com/*",
+        "https://copilot.cloud.microsoft/*",
         "https://www.meta.ai/*",
+        "https://meta.ai/*",
         "https://chat.mistral.ai/*",
         "https://huggingface.co/*",
         "https://poe.com/*",
         "https://chat.qwen.ai/*",
-        "https://tongyi.aliyun.com/*"
+        "https://tongyi.aliyun.com/*",
+        "https://you.com/*",
+        "https://www.blackbox.ai/*",
+        "https://www.phind.com/*"
       ]
     }
   ],

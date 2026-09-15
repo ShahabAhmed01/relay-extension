@@ -1,130 +1,54 @@
-// SELECTOR_VERSION: 2026-Q2
-// Relay — ChatGPT Platform Scraper & Injector
+// SELECTOR_VERSION: 2026-Q3
+// Relay v1.1.0 — ChatGPT scraper & injector (Base factory, no duplication).
 
-const ChatGPTScraper = (() => {
-  let _observer = null;
-  let _callback = null;
-  let _debounceTimer = null;
+(function () {
+  'use strict';
 
-  function scrapeMessages() {
-    const messages = [];
-    let index = 0;
-
-    const allTurns = document.querySelectorAll('[data-message-author-role]');
-    if (allTurns.length > 0) {
-      allTurns.forEach((turn) => {
-        const role = turn.getAttribute('data-message-author-role');
-        const contentEl = turn.querySelector('.whitespace-pre-wrap') ||
-                          turn.querySelector('.markdown') ||
-                          turn.querySelector('[class*="markdown"]') ||
-                          turn;
-        const text = contentEl ? contentEl.textContent.trim() : '';
-        if (text && (role === 'user' || role === 'assistant')) {
-          messages.push({ role, content: text, index: index++ });
-        }
+  function scrape() {
+    var D = (typeof RelayDOM !== 'undefined') ? RelayDOM : null;
+    var get = D ? D.textOf : function (el) { return (el.textContent || '').trim(); };
+    var nodes = document.querySelectorAll('[data-message-author-role]');
+    var out = [];
+    var seen = new Set();
+    nodes.forEach(function (turn) {
+      var role = turn.getAttribute('data-message-author-role');
+      if (role !== 'user' && role !== 'assistant' && role !== 'system') return;
+      if (role === 'system') return;
+      var contentEl = turn.querySelector('.whitespace-pre-wrap') ||
+        turn.querySelector('.markdown') ||
+        turn.querySelector('[class*="markdown"]') || turn;
+      var text = get(contentEl);
+      // Skip empty + UI chrome (e.g. "Copy code" buttons leak into textContent).
+      if (!text || seen.has(role + '|' + text)) return;
+      seen.add(role + '|' + text);
+      out.push({ role: role, content: text, index: out.length });
+    });
+    if (!out.length) {
+      var articles = document.querySelectorAll('article[data-testid*="conversation-turn"]');
+      articles.forEach(function (turn) {
+        var isUser = turn.querySelector('[data-message-author-role="user"]') !== null;
+        var el = turn.querySelector('.whitespace-pre-wrap') || turn.querySelector('.markdown') || turn;
+        var text = get(el);
+        if (!text || seen.has(text)) return;
+        seen.add(text);
+        out.push({ role: isUser ? 'user' : 'assistant', content: text, index: out.length });
       });
     }
-
-    if (messages.length === 0) {
-      const fallbackTurns = document.querySelectorAll('article[data-testid*="conversation-turn"]');
-      fallbackTurns.forEach((turn) => {
-        const isUser = turn.querySelector('[data-message-author-role="user"]') !== null;
-        const contentEl = turn.querySelector('.whitespace-pre-wrap') ||
-                          turn.querySelector('.markdown') ||
-                          turn;
-        const text = contentEl ? contentEl.textContent.trim() : '';
-        if (text) {
-          messages.push({ role: isUser ? 'user' : 'assistant', content: text, index: index++ });
-        }
-      });
-    }
-
-    if (messages.length === 0 && typeof GenericScraper !== 'undefined') {
-      return GenericScraper.scrapeMessages();
-    }
-    return messages;
+    return out;
   }
 
-  function hasConversation() {
+  function has() {
     return document.querySelectorAll('[data-message-author-role]').length > 0;
   }
 
-  function observe(callback) {
-    if (_observer) { _observer.disconnect(); _observer = null; }
-    _callback = callback;
-    const container = document.querySelector('main') || document.body;
-    _observer = new MutationObserver(() => {
-      clearTimeout(_debounceTimer);
-      _debounceTimer = setTimeout(() => {
-        if (_callback) {
-          const msgs = scrapeMessages();
-          if (msgs.length > 0) _callback(msgs);
-        }
-      }, 300);
-    });
-    _observer.observe(container, { childList: true, subtree: true });
-  }
+  function container() { return document.querySelector('main') || document.body; }
 
-  function disconnect() {
-    clearTimeout(_debounceTimer);
-    if (_observer) { _observer.disconnect(); _observer = null; }
-    _callback = null;
+  if (typeof RelayBase !== 'undefined') {
+    RelayBase.makeScraper({ scrape: scrape, hasConversation: has, container: container }, 'ChatGPTScraper');
+    RelayBase.makeInjector({
+      inputs: ['#prompt-textarea', 'div[contenteditable="true"][data-id="root"]', 'div[contenteditable="true"]', 'textarea'],
+      submits: ['[data-testid="send-button"]', 'button[aria-label="Send prompt"]', 'button[aria-label="Send"]'],
+    }, 'ChatGPTInjector');
   }
-
-  return { scrapeMessages, hasConversation, observe, disconnect };
 })();
 
-const ChatGPTInjector = (() => {
-  function _getInput() {
-    return document.querySelector('#prompt-textarea') ||
-           document.querySelector('div[contenteditable="true"][data-id="root"]') ||
-           document.querySelector('div[contenteditable="true"]') ||
-           document.querySelector('textarea');
-  }
-
-  function _getSubmitBtn() {
-    return document.querySelector('[data-testid="send-button"]') ||
-           document.querySelector('button[aria-label="Send prompt"]') ||
-           document.querySelector('button[aria-label="Send"]');
-  }
-
-  async function injectText(text) {
-    const el = _getInput();
-    if (!el) return false;
-
-    if (el.tagName === 'TEXTAREA') {
-      try {
-        const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
-        setter.call(el, text);
-      } catch (e) {
-        el.value = text;
-      }
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    } else {
-      el.focus();
-      document.execCommand('selectAll', false, null);
-      document.execCommand('insertText', false, text);
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-    return true;
-  }
-
-  async function submit() {
-    const btn = _getSubmitBtn();
-    if (btn && !btn.disabled) { btn.click(); return true; }
-    return false;
-  }
-
-  function isReady() {
-    return _getInput() !== null;
-  }
-
-  return { injectText, submit, isReady };
-})();
-
-if (typeof window !== 'undefined') {
-  window.ChatGPTScraper = ChatGPTScraper;
-  window.ChatGPTInjector = ChatGPTInjector;
-}

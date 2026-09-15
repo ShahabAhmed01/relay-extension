@@ -1,16 +1,27 @@
 {
   "name": "relay-extension",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Relay — AI Context Bridge Browser Extension. Never lose your AI conversation thread.",
   "scripts": {
     "build": "node build-icons.js",
-    "pack:chrome": "node build-package.js",
+    "pack": "node build-package.js",
+    "pack:chrome": "node build-package.js --target=chrome",
+    "pack:firefox": "node build-package.js --target=firefox",
+    "pack:source": "node build-package.js --target=source",
     "dev": "echo 'Load this folder as unpacked extension in browser'",
-    "test:e2e": "node tests/e2e/test.js"
+    "lint": "node scripts/lint.js",
+    "lint:fix": "node scripts/lint.js --fix",
+    "test": "node --test tests/unit/*.test.js",
+    "test:unit": "node --test tests/unit/*.test.js",
+    "test:e2e": "node tests/e2e/test.js",
+    "validate": "npm run lint && npm run test:unit"
   },
   "devDependencies": {
     "puppeteer": "^24.43.1",
     "sharp": "^0.33.0"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "private": true,
   "license": "MIT"

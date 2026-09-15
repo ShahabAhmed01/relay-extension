@@ -1,9 +1,10 @@
 /**
- * Relay — Platform Registry
- * Detects which AI platform the user is on and provides the correct scraper/injector.
+ * Relay v1.1.0 — Platform Registry
+ * Single source of truth for platform ids/urls/matches.
  */
 
-const RelayPlatforms = (() => {
+var RelayPlatforms = (function () {
+  'use strict';
   const PLATFORMS = [
     {
       id: 'chatgpt',
@@ -57,7 +58,7 @@ const RelayPlatforms = (() => {
       id: 'copilot',
       name: 'Copilot',
       url: 'https://copilot.microsoft.com',
-      matches: ['copilot.microsoft.com'],
+      matches: ['copilot.microsoft.com', 'copilot.cloud.microsoft'],
       color: '#0078d4',
       logoSvg: '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="#0078d4"/></svg>',
     },
@@ -101,38 +102,50 @@ const RelayPlatforms = (() => {
       color: '#615ced',
       logoSvg: '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" fill="#615ced"/></svg>',
     },
+    {
+      id: 'aistudio',
+      name: 'AI Studio',
+      url: 'https://aistudio.google.com/prompts/new_chat',
+      matches: ['aistudio.google.com'],
+      color: '#1a73e8',
+      logoSvg: '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2l2.4 7.2H22l-6.2 4.5 2.4 7.3-6.2-4.5-6.2 4.5 2.4-7.3L2 9.2h7.6z" fill="#1a73e8"/></svg>',
+    },
   ];
 
-  function detectPlatform(hostname) {
+  // Longest-match wins so e.g. subdomains don't misroute; x.com only for /i/grok is enforced in background.
+  function detectPlatform(hostname, pathname) {
     if (!hostname) return null;
-    const host = hostname.toLowerCase().replace(/^www\./, '');
-    for (const platform of PLATFORMS) {
-      for (const match of platform.matches) {
-        const m = match.toLowerCase().replace(/^www\./, '');
+    var host = String(hostname).toLowerCase().replace(/^www\./, '');
+    var best = null; var bestLen = -1;
+    for (var i = 0; i < PLATFORMS.length; i++) {
+      var p = PLATFORMS[i];
+      for (var j = 0; j < p.matches.length; j++) {
+        var m = String(p.matches[j]).toLowerCase().replace(/^www\./, '');
         if (host === m || host.endsWith('.' + m)) {
-          return platform;
+          if (p.id === 'grok' && (host === 'x.com' || host.endsWith('.x.com'))) {
+            if (pathname && pathname.indexOf('/i/grok') !== 0) continue;
+          }
+          if (m.length > bestLen) { best = p; bestLen = m.length; }
         }
       }
     }
-    return null;
+    return best;
   }
 
   function getPlatformById(id) {
-    return PLATFORMS.find(p => p.id === id) || null;
+    for (var i = 0; i < PLATFORMS.length; i++) if (PLATFORMS[i].id === id) return PLATFORMS[i];
+    return null;
   }
 
-  function getAllPlatforms() {
-    return PLATFORMS;
-  }
+  function getAllPlatforms() { return PLATFORMS.slice(); }
 
   return {
-    PLATFORMS,
-    detectPlatform,
-    getPlatformById,
-    getAllPlatforms,
+    PLATFORMS: PLATFORMS,
+    detectPlatform: detectPlatform,
+    getPlatformById: getPlatformById,
+    getAllPlatforms: getAllPlatforms,
   };
 })();
 
-if (typeof window !== 'undefined') {
-  window.RelayPlatforms = RelayPlatforms;
-}
+if (typeof window !== 'undefined') window.RelayPlatforms = RelayPlatforms;
+if (typeof module !== 'undefined' && module.exports) module.exports = RelayPlatforms;

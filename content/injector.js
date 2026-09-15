@@ -1,121 +1,125 @@
 /**
- * Relay — Injector Manager
- * Handles injecting captured context into AI input fields on target platforms.
+ * Relay v1.1.0 — Injector Manager
+ * Retry-safe injection: pending is kept until success / attempts exhausted.
  */
 
-const InjectorManager = (() => {
-  const SCRAPERS = {
-    chatgpt: typeof ChatGPTScraper !== 'undefined' ? ChatGPTScraper : null,
-    claude: typeof ClaudeScraper !== 'undefined' ? ClaudeScraper : null,
-    gemini: typeof GeminiScraper !== 'undefined' ? GeminiScraper : null,
-    perplexity: typeof PerplexityScraper !== 'undefined' ? PerplexityScraper : null,
-    deepseek: typeof DeepSeekScraper !== 'undefined' ? DeepSeekScraper : null,
-    grok: typeof GrokScraper !== 'undefined' ? GrokScraper : null,
-    copilot: typeof CopilotScraper !== 'undefined' ? CopilotScraper : null,
-    metaai: typeof MetaAIScraper !== 'undefined' ? MetaAIScraper : null,
-    mistral: typeof MistralScraper !== 'undefined' ? MistralScraper : null,
-    huggingchat: typeof HuggingChatScraper !== 'undefined' ? HuggingChatScraper : null,
-    poe: typeof PoeScraper !== 'undefined' ? PoeScraper : null,
-    qwen: typeof QwenScraper !== 'undefined' ? QwenScraper : null,
-  };
+var InjectorManager = (function () {
+  'use strict';
 
-  const INJECTORS = {
-    chatgpt: typeof ChatGPTInjector !== 'undefined' ? ChatGPTInjector : null,
-    claude: typeof ClaudeInjector !== 'undefined' ? ClaudeInjector : null,
-    gemini: typeof GeminiInjector !== 'undefined' ? GeminiInjector : null,
-    perplexity: typeof PerplexityInjector !== 'undefined' ? PerplexityInjector : null,
-    deepseek: typeof DeepSeekInjector !== 'undefined' ? DeepSeekInjector : null,
-    grok: typeof GrokInjector !== 'undefined' ? GrokInjector : null,
-    copilot: typeof CopilotInjector !== 'undefined' ? CopilotInjector : null,
-    metaai: typeof MetaAIInjector !== 'undefined' ? MetaAIInjector : null,
-    mistral: typeof MistralInjector !== 'undefined' ? MistralInjector : null,
-    huggingchat: typeof HuggingChatInjector !== 'undefined' ? HuggingChatInjector : null,
-    poe: typeof PoeInjector !== 'undefined' ? PoeInjector : null,
-    qwen: typeof QwenInjector !== 'undefined' ? QwenInjector : null,
-  };
+  var MAX_ATTEMPTS = 6;
+
+  function pick(map, id, generic) {
+    if (map[id]) return map[id];
+    return generic || null;
+  }
+  function g(n) { try { return typeof window !== 'undefined' ? window[n] : null; } catch (_e) { return null; } }
 
   function getScraper(platformId) {
-    return SCRAPERS[platformId] || (typeof GenericScraper !== 'undefined' ? GenericScraper : null);
+    var map = {
+      chatgpt: g('ChatGPTScraper'), claude: g('ClaudeScraper'), gemini: g('GeminiScraper'),
+      aistudio: g('AIStudioScraper'), perplexity: g('PerplexityScraper'), deepseek: g('DeepSeekScraper'),
+      grok: g('GrokScraper'), copilot: g('CopilotScraper'), metaai: g('MetaAIScraper'),
+      mistral: g('MistralScraper'), huggingchat: g('HuggingChatScraper'),
+      poe: g('PoeScraper'), qwen: g('QwenScraper'),
+    };
+    return pick(map, platformId, g('GenericScraper'));
   }
 
   function getInjector(platformId) {
-    return INJECTORS[platformId] || (typeof GenericInjector !== 'undefined' ? GenericInjector : null);
+    var map = {
+      chatgpt: g('ChatGPTInjector'), claude: g('ClaudeInjector'), gemini: g('GeminiInjector'),
+      aistudio: g('AIStudioInjector'), perplexity: g('PerplexityInjector'), deepseek: g('DeepSeekInjector'),
+      grok: g('GrokInjector'), copilot: g('CopilotInjector'), metaai: g('MetaAIInjector'),
+      mistral: g('MistralInjector'), huggingchat: g('HuggingChatInjector'),
+      poe: g('PoeInjector'), qwen: g('QwenInjector'),
+    };
+
+    return pick(map, platformId, g('GenericInjector'));
   }
 
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
   async function checkAndInject() {
-    if (typeof RelayStorage === 'undefined') return;
+    if (typeof RelayStorage === 'undefined') return { injected: false, reason: 'no-storage' };
+    var settings = null;
+    try { settings = await RelayStorage.getSettings(); } catch (_e) {}
+    if (settings && settings.autoInject === false) return { injected: false, reason: 'disabled' };
+    var pending = await RelayStorage.getPendingInjection();
+    if (!pending || !pending.formattedContext) return { injected: false, reason: 'empty' };
 
-    const pending = await RelayStorage.getPendingInjection();
-    if (!pending || !pending.formattedContext) return;
-
-    const platform = typeof RelayPlatforms !== 'undefined'
-      ? RelayPlatforms.detectPlatform(window.location.hostname)
-      : null;
-
-    const platformId = platform ? platform.id : 'generic';
-    const injector = getInjector(platformId);
-    if (!injector) return;
-
+    var platform = (typeof RelayPlatforms !== 'undefined')
+      ? RelayPlatforms.detectPlatform(window.location.hostname) : null;
+    var platformId = platform ? platform.id : 'generic';
+    var injector = getInjector(platformId);
+    if (!injector) return { injected: false, reason: 'no-injector' };
     if (pending.targetPlatformId && pending.targetPlatformId !== platformId) {
-      return;
+      return { injected: false, reason: 'wrong-target' };
     }
-
-    const maxWait = 8000;
-    const intervals = [300, 600, 1200, 2400];
-    let waited = 0;
-    let injected = false;
-
-    for (const interval of intervals) {
-      if (waited >= maxWait) break;
-      await new Promise(r => setTimeout(r, interval));
-      waited += interval;
-
-      if (injector.isReady()) {
-        injected = await injector.injectText(pending.formattedContext);
-        if (injected) break;
+    var intervals = [400, 800, 1500, 2500, 4000];
+    var injected = false;
+    for (var i = 0; i < intervals.length; i++) {
+      await sleep(intervals[i]);
+      try {
+        if (injector.isReady && injector.isReady()) {
+          injected = await injector.injectText(pending.formattedContext);
+          if (injected) break;
+        }
+      } catch (_e) {}
+    }
+    if (injected) {
+      await RelayStorage.clearPendingInjection();
+      if (typeof RelayToast !== 'undefined') {
+        try { RelayToast.show('Context loaded — ready to continue', 'success'); } catch (_e2) {}
       }
+      return { injected: true };
     }
-
-    if (!injected && injector.isReady()) {
-      injected = await injector.injectText(pending.formattedContext);
-    }
-
-    await RelayStorage.clearPendingInjection();
-
-    if (injected && typeof RelayToast !== 'undefined') {
-      RelayToast.show('Context loaded — ready to continue', 'success');
-    }
+    // Keep pending for the retry alarm; count attempts so we eventually expire.
+    try {
+      var p = await RelayStorage.bumpPendingAttempts();
+      if (p && (p.attempts || 0) >= MAX_ATTEMPTS) {
+        await RelayStorage.clearPendingInjection();
+        if (typeof RelayToast !== 'undefined') {
+          try { RelayToast.show('Relay: could not find the chat box — click Copy in the popup instead.', 'warning', 6000); } catch (_e3) {}
+        }
+        return { injected: false, reason: 'exhausted' };
+      }
+    } catch (_e4) {}
+    return { injected: false, reason: 'not-ready' };
   }
 
   function injectIntoContentEditable(element, text) {
     if (!element) return false;
-    element.focus();
-    document.execCommand('selectAll', false, null);
-    document.execCommand('insertText', false, text);
-    element.dispatchEvent(new Event('input', { bubbles: true }));
-    element.dispatchEvent(new Event('change', { bubbles: true }));
-    return true;
+    try {
+      if (typeof RelayDOM !== 'undefined') return RelayDOM.insertIntoEditable(element, text);
+    } catch (_e) {}
+    try {
+      element.focus();
+      document.execCommand('selectAll', false, null);
+      document.execCommand('insertText', false, text);
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    } catch (_e2) { return false; }
   }
 
   function injectIntoTextarea(element, text) {
     if (!element) return false;
-    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-      window.HTMLTextAreaElement.prototype, 'value'
-    ).set;
-    nativeInputValueSetter.call(element, text);
-    element.dispatchEvent(new InputEvent('input', { bubbles: true }));
-    return true;
+    try {
+      if (typeof RelayDOM !== 'undefined') { RelayDOM.setNativeValue(element, text); return true; }
+    } catch (_e) {}
+    try {
+      element.value = text;
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    } catch (_e2) { return false; }
   }
 
   return {
-    getScraper,
-    getInjector,
-    checkAndInject,
-    injectIntoContentEditable,
-    injectIntoTextarea,
+    getScraper: getScraper, getInjector: getInjector,
+    checkAndInject: checkAndInject,
+    injectIntoContentEditable: injectIntoContentEditable,
+    injectIntoTextarea: injectIntoTextarea,
   };
 })();
 
-if (typeof window !== 'undefined') {
-  window.InjectorManager = InjectorManager;
-}
+if (typeof window !== 'undefined') window.InjectorManager = InjectorManager;
+if (typeof module !== 'undefined' && module.exports) module.exports = InjectorManager;

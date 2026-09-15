@@ -1,58 +1,49 @@
 /**
- * Relay — Browser API Compatibility Layer
- * Custom lightweight polyfill that wraps chrome.* APIs
- * to return Promises (matching the browser.* API contract).
- * MIT License — Copyright (c) 2026 Shahab Ahmed
+ * Relay v1.1.0 — Browser API Compatibility Layer (fixed).
+ * - Forwards event objects (onChanged/onUpdated/...) instead of dropping them.
+ * - Keeps callback-style Chrome APIs working while exposing promises.
  */
-
-(function(global) {
+(function (global) {
   'use strict';
+  if (typeof global.browser !== 'undefined' && global.browser.runtime && global.browser.runtime.id) return;
+  if (typeof global.chrome === 'undefined' || !global.chrome.runtime) return;
+  var chrome = global.chrome;
 
-  if (typeof global.browser !== 'undefined' && global.browser.runtime && global.browser.runtime.id) {
-    return;
+  function isEventObj(v) {
+    return v && typeof v === 'object' && typeof v.addListener === 'function';
   }
 
-  if (typeof global.chrome === 'undefined' || !global.chrome.runtime) {
-    return;
-  }
-
-  const chrome = global.chrome;
-
-  function wrapAPIs(target, source) {
-    const wrapped = {};
-    for (const key in source) {
-      if (typeof source[key] === 'function') {
-        wrapped[key] = promisify(source[key].bind(source));
-      } else if (typeof source[key] === 'object' && source[key] !== null) {
-        wrapped[key] = wrapAPIs({}, source[key]);
-      } else {
-        wrapped[key] = source[key];
+  function promisify(ns, name, fn) {
+    return function () {
+      var args = Array.prototype.slice.call(arguments);
+      var last = args[args.length - 1];
+      // Preserve callback style: if caller passed a function, use it directly.
+      if (typeof last === 'function') {
+        try { return fn.apply(ns, args); } catch (e) { return last(e); }
       }
-    }
-    return wrapped;
-  }
-
-  function promisify(fn) {
-    return function() {
-      const args = Array.from(arguments);
-      return new Promise((resolve, reject) => {
-        args.push(function(result) {
-          if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
-          } else {
-            resolve(result);
-          }
+      return new Promise(function (resolve, reject) {
+        args.push(function (result) {
+          if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+          else resolve(result);
         });
-        try {
-          fn.apply(null, args);
-        } catch (e) {
-          reject(e);
-        }
+        try { fn.apply(ns, args); } catch (e) { reject(e); }
       });
     };
   }
 
-  const browser = {
+  function wrapObject(ns, names) {
+    var out = {};
+    names.forEach(function (n) {
+      var v = ns[n];
+      if (typeof v === 'function') out[n] = promisify(ns, n, v);
+      else if (isEventObj(v)) out[n] = v; // events must stay identical
+      else if (v && typeof v === 'object') out[n] = v;
+      else out[n] = v;
+    });
+    return out;
+  }
+
+  var browser = {
     runtime: chrome.runtime,
     storage: chrome.storage,
     tabs: chrome.tabs,
@@ -60,160 +51,50 @@
     browserAction: chrome.browserAction,
     alarms: chrome.alarms,
     scripting: chrome.scripting,
+    commands: chrome.commands,
     i18n: chrome.i18n,
     extension: chrome.extension,
   };
 
   if (chrome.storage && chrome.storage.local) {
     browser.storage = {
-      local: {
-        get: function(keys) {
-          return new Promise((resolve, reject) => {
-            chrome.storage.local.get(keys, (result) => {
-              if (chrome.runtime.lastError) {
-                reject(new Error(chrome.runtime.lastError.message));
-              } else {
-                resolve(result);
-              }
-            });
-          });
-        },
-        set: function(items) {
-          return new Promise((resolve, reject) => {
-            chrome.storage.local.set(items, () => {
-              if (chrome.runtime.lastError) {
-                reject(new Error(chrome.runtime.lastError.message));
-              } else {
-                resolve();
-              }
-            });
-          });
-        },
-        remove: function(keys) {
-          return new Promise((resolve, reject) => {
-            chrome.storage.local.remove(keys, () => {
-              if (chrome.runtime.lastError) {
-                reject(new Error(chrome.runtime.lastError.message));
-              } else {
-                resolve();
-              }
-            });
-          });
-        },
-        clear: function() {
-          return new Promise((resolve, reject) => {
-            chrome.storage.local.clear(() => {
-              if (chrome.runtime.lastError) {
-                reject(new Error(chrome.runtime.lastError.message));
-              } else {
-                resolve();
-              }
-            });
-          });
-        },
-      },
+      local: wrapObject(chrome.storage.local, ['get', 'set', 'remove', 'clear', 'getBytesInUse']),
       onChanged: chrome.storage.onChanged,
     };
   }
 
   if (chrome.tabs) {
     browser.tabs = {
-      create: function(createProperties) {
-        return new Promise((resolve, reject) => {
-          chrome.tabs.create(createProperties, (tab) => {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
-            } else {
-              resolve(tab);
-            }
-          });
-        });
-      },
-      query: function(queryInfo) {
-        return new Promise((resolve, reject) => {
-          chrome.tabs.query(queryInfo, (tabs) => {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
-            } else {
-              resolve(tabs);
-            }
-          });
-        });
-      },
-      sendMessage: function(tabId, message) {
-        return new Promise((resolve, reject) => {
-          chrome.tabs.sendMessage(tabId, message, (response) => {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
-            } else {
-              resolve(response);
-            }
-          });
-        });
-      },
+      create: promisify(chrome.tabs, 'create', chrome.tabs.create),
+      query: promisify(chrome.tabs, 'query', chrome.tabs.query),
+      get: chrome.tabs.get ? promisify(chrome.tabs, 'get', chrome.tabs.get) : undefined,
+      sendMessage: promisify(chrome.tabs, 'sendMessage', chrome.tabs.sendMessage),
       onUpdated: chrome.tabs.onUpdated,
       onActivated: chrome.tabs.onActivated,
+      onRemoved: chrome.tabs.onRemoved,
     };
   }
 
   if (chrome.action) {
     browser.action = {
-      setBadgeText: function(details) {
-        return new Promise((resolve, reject) => {
-          chrome.action.setBadgeText(details, () => {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
-            } else {
-              resolve();
-            }
-          });
-        });
-      },
-      setBadgeBackgroundColor: function(details) {
-        return new Promise((resolve, reject) => {
-          chrome.action.setBadgeBackgroundColor(details, () => {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
-            } else {
-              resolve();
-            }
-          });
-        });
-      },
+      setBadgeText: promisify(chrome.action, 'setBadgeText', chrome.action.setBadgeText),
+      setBadgeBackgroundColor: promisify(chrome.action, 'setBadgeBackgroundColor', chrome.action.setBadgeBackgroundColor),
+      getBadgeText: chrome.action.getBadgeText ? promisify(chrome.action, 'getBadgeText', chrome.action.getBadgeText) : undefined,
     };
   }
 
   if (chrome.browserAction) {
     browser.browserAction = {
-      setBadgeText: function(details) {
-        return new Promise((resolve, reject) => {
-          chrome.browserAction.setBadgeText(details, () => {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
-            } else {
-              resolve();
-            }
-          });
-        });
-      },
-      setBadgeBackgroundColor: function(details) {
-        return new Promise((resolve, reject) => {
-          chrome.browserAction.setBadgeBackgroundColor(details, () => {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
-            } else {
-              resolve();
-            }
-          });
-        });
-      },
+      setBadgeText: promisify(chrome.browserAction, 'setBadgeText', chrome.browserAction.setBadgeText),
+      setBadgeBackgroundColor: promisify(chrome.browserAction, 'setBadgeBackgroundColor', chrome.browserAction.setBadgeBackgroundColor),
     };
   }
 
   if (chrome.alarms) {
     browser.alarms = {
       create: chrome.alarms.create.bind(chrome.alarms),
-      clear: chrome.alarms.clear.bind(chrome.alarms),
+      clear: chrome.alarms.clear ? chrome.alarms.clear.bind(chrome.alarms) : undefined,
+      get: chrome.alarms.get ? chrome.alarms.get.bind(chrome.alarms) : undefined,
       onAlarm: chrome.alarms.onAlarm,
     };
   }

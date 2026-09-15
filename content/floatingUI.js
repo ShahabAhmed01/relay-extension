@@ -1,85 +1,60 @@
 /**
- * Relay — Floating UI
- * Creates the FAB button and floating panel with Shadow DOM isolation.
+ * Relay v1.1.0 — Floating UI
+ * Shadow-DOM FAB + panel. Adds: 4-corner positions, draggable FAB,
+ * keyboard support (Esc/Alt+R), focus trap, toast inside shadow root.
  */
 
-const RelayToast = (() => {
-  let _container = null;
+var RelayToast = (function () {
+  'use strict';
+  var host = null;
+  var shadow = null;
 
-  function _ensureContainer() {
-    if (_container) return _container;
-    _container = document.createElement('div');
-    _container.id = 'relay-toast-container';
-    _container.style.cssText = 'position:fixed;bottom:82px;right:22px;z-index:2147483645;display:flex;flex-direction:column-reverse;gap:8px;pointer-events:none;';
-    document.body.appendChild(_container);
-    return _container;
-  }
-
-  function _isDarkMode() {
-    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  function ensure() {
+    if (host && shadow) return shadow;
+    host = document.createElement('div');
+    host.id = 'relay-toast-host';
+    host.style.cssText = 'position:fixed;inset:auto 22px 82px auto;z-index:2147483645;pointer-events:none;';
+    shadow = host.attachShadow({ mode: 'open' });
+    var style = document.createElement('style');
+    style.textContent = '.t{pointer-events:auto;padding:10px 16px;border-radius:10px;font:500 13px system-ui,sans-serif;max-width:300px;margin-top:8px;opacity:0;transform:translateY(12px);transition:opacity .2s,transform .2s;border:1px solid rgba(0,0,0,.08);background:rgba(255,255,255,.96);color:#0d0d14;box-shadow:0 8px 24px rgba(0,0,0,.12);border-left:3px solid #7c3aed}.t.show{opacity:1;transform:none}.t.success{border-left-color:#10b981}.t.warning{border-left-color:#f59e0b}.t.error{border-left-color:#ef4444}@media(prefers-color-scheme:dark){.t{background:rgba(14,14,18,.96);color:#f8f8ff;border-color:rgba(255,255,255,.1)}}';
+    shadow.appendChild(style);
+    document.body.appendChild(host);
+    return shadow;
   }
 
   function show(message, type, duration) {
     type = type || 'info';
     duration = duration || 3000;
-    const container = _ensureContainer();
-
-    const isDark = _isDarkMode();
-    const bgColor = isDark ? 'rgba(14, 14, 18, 0.96)' : 'rgba(255, 255, 255, 0.96)';
-    const textColor = isDark ? '#f8f8ff' : '#0d0d14';
-    const borderColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)';
-
-    const toast = document.createElement('div');
-    toast.style.cssText = `
-      pointer-events:auto;padding:10px 16px;border-radius:10px;
-      font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI Variable',system-ui,sans-serif;
-      font-size:13px;font-weight:500;color:${textColor};
-      backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
-      background:${bgColor};border:1px solid ${borderColor};
-      box-shadow:0 8px 24px rgba(0,0,0,${isDark ? '0.5' : '0.12'});
-      opacity:0;transform:translateY(12px);
-      transition:opacity 200ms ease,transform 200ms ease;max-width:280px;
-    `;
-
-    const colors = { success: '#10b981', warning: '#f59e0b', error: '#ef4444', info: '#7c3aed' };
-    toast.style.borderLeft = '3px solid ' + (colors[type] || colors.info);
-    toast.textContent = message;
-
-    container.appendChild(toast);
-
-    requestAnimationFrame(() => {
-      toast.style.opacity = '1';
-      toast.style.transform = 'translateY(0)';
-    });
-
-    const toasts = container.children;
-    while (toasts.length > 3) {
-      container.removeChild(toasts[0]);
-    }
-
-    setTimeout(() => {
-      toast.style.opacity = '0';
-      toast.style.transform = 'translateY(-8px)';
-      setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 300);
+    var root = ensure();
+    var el = document.createElement('div');
+    el.className = 't ' + type;
+    el.setAttribute('role', 'status');
+    el.textContent = String(message == null ? '' : message);
+    root.appendChild(el);
+    requestAnimationFrame(function () { el.classList.add('show'); });
+    while (root.querySelectorAll('.t').length > 3) root.querySelector('.t').remove();
+    setTimeout(function () {
+      el.classList.remove('show');
+      setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 250);
     }, duration);
   }
 
-  return { show };
+  return { show: show };
 })();
 
-const FloatingUI = (() => {
-  let _fab = null;
-  let _tooltip = null;
-  let _panelHost = null;
-  let _shadow = null;
-  let _isOpen = false;
-  let _currentPlatform = null;
-  let _eventsAttached = false;
-  let _tooltipTimer = null;
+var FloatingUI = (function () {
+  'use strict';
+  var RELAY_LOGO_SVG = '<svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 7C4 7 7 3 11 3C15 3 17 6 17 6" stroke="white" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M15 4L17 6L14 7" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M18 15C18 15 15 19 11 19C7 19 5 16 5 16" stroke="white" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M7 18L5 16L8 15" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="11" cy="11" r="1.5" fill="white"/></svg>';
 
-  const RELAY_LOGO_SVG = '<svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 7C4 7 7 3 11 3C15 3 17 6 17 6" stroke="white" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M15 4L17 6L14 7" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M18 15C18 15 15 19 11 19C7 19 5 16 5 16" stroke="white" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M7 18L5 16L8 15" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="11" cy="11" r="1.5" fill="white"/></svg>';
-
-  const GEAR_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+  var _fab = null;
+  var _fabHost = null;
+  var _tooltip = null;
+  var _panelHost = null;
+  var _shadow = null;
+  var _isOpen = false;
+  var _eventsAttached = false;
+  var _tooltipTimer = null;
+  var _drag = null;
 
   const CLOSE_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
 
@@ -87,98 +62,41 @@ const FloatingUI = (() => {
 
   const TRASH_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
 
+  function fabXY(pos) {
+    if (pos === 'bottom-left') return { bottom: '22px', left: '22px', right: 'auto', top: 'auto' };
+    if (pos === 'top-right') return { top: '22px', right: '22px', bottom: 'auto', left: 'auto' };
+    if (pos === 'top-left') return { top: '22px', left: '22px', bottom: 'auto', right: 'auto' };
+    return { bottom: '22px', right: '22px', left: 'auto', top: 'auto' };
+  }
+
   function _createFAB(settings) {
+    if (document.getElementById('relay-fab')) return;
     if (!document.getElementById('relay-fab-keyframes')) {
-      const kfStyle = document.createElement('style');
-      kfStyle.id = 'relay-fab-keyframes';
-      kfStyle.textContent = `
-        @keyframes relay-pulse-ring {
-          0% { box-shadow: 0 4px 20px rgba(0,0,0,0.4), 0 0 0 0 rgba(124,58,237,0.5); }
-          70% { box-shadow: 0 4px 20px rgba(0,0,0,0.4), 0 0 0 12px rgba(124,58,237,0); }
-          100% { box-shadow: 0 4px 20px rgba(0,0,0,0.4), 0 0 0 0 rgba(124,58,237,0); }
-        }
-      `;
-      document.head.appendChild(kfStyle);
+      var kf = document.createElement('style');
+      kf.id = 'relay-fab-keyframes';
+      kf.textContent = '@keyframes relay-pulse-ring{0%{box-shadow:0 4px 20px rgba(0,0,0,.4),0 0 0 0 rgba(124,58,237,.5)}70%{box-shadow:0 4px 20px rgba(0,0,0,.4),0 0 0 12px rgba(124,58,237,0)}100%{box-shadow:0 4px 20px rgba(0,0,0,.4),0 0 0 0 rgba(124,58,237,0)}}';
+      document.head.appendChild(kf);
     }
-
-    const pos = (settings && settings.fabPosition) || 'bottom-right';
-    const isLeft = pos === 'bottom-left';
-    const posStyles = isLeft
-      ? 'bottom:22px;left:22px;right:auto;'
-      : 'bottom:22px;right:22px;left:auto;';
-
-    const size = (settings && settings.fabSize === 'large') ? 60 : 52;
-
+    var pos = (settings && settings.fabPosition) || 'bottom-right';
+    var size = (settings && settings.fabSize === 'large') ? 60 : 52;
+    // Draggable FAB lives in a shadow host so page CSS can't break it.
+    _fabHost = document.createElement('div');
+    _fabHost.id = 'relay-fab-host';
+    var p = fabXY(pos);
+    _fabHost.style.cssText = 'position:fixed;top:' + p.top + ';bottom:' + p.bottom + ';left:' + p.left + ';right:' + p.right + ';z-index:2147483640;';
+    var sh = _fabHost.attachShadow({ mode: 'open' });
+    var st = document.createElement('style');
+    st.textContent = '#relay-fab{width:' + size + 'px;height:' + size + 'px;border-radius:50%;background:#7c3aed;border:1px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;cursor:grab;box-shadow:0 4px 20px rgba(0,0,0,.4),0 0 0 1px rgba(124,58,237,.3);transition:transform .15s;user-select:none}#relay-fab:hover{transform:scale(1.06)}#relay-fab:active{cursor:grabbing;transform:scale(.94)}#relay-fab:focus-visible{outline:2px solid #fff;outline-offset:2px}';
+    sh.appendChild(st);
     _fab = document.createElement('div');
     _fab.id = 'relay-fab';
     _fab.innerHTML = RELAY_LOGO_SVG;
     _fab.setAttribute('role', 'button');
-    _fab.setAttribute('aria-label', 'Relay — AI Context Bridge');
+    _fab.setAttribute('aria-label', 'Relay — AI Context Bridge (Alt+R)');
     _fab.setAttribute('tabindex', '0');
-
-    _fab.style.cssText = `
-      position:fixed;${posStyles}width:${size}px;height:${size}px;border-radius:50%;
-      background:#7c3aed;border:1px solid rgba(255,255,255,0.15);
-      display:flex;align-items:center;justify-content:center;cursor:pointer;
-      z-index:2147483640;
-      box-shadow:0 4px 20px rgba(0,0,0,0.4),0 0 0 1px rgba(124,58,237,0.3);
-      transition:transform 150ms cubic-bezier(0.16,1,0.3,1),box-shadow 150ms ease;
-      user-select:none;-webkit-user-select:none;
-    `;
-
-    _fab.addEventListener('mouseenter', () => {
-      _fab.style.transform = 'scale(1.06)';
-      _fab.style.boxShadow = '0 4px 20px rgba(0,0,0,0.4),0 0 24px rgba(124,58,237,0.6)';
-      _tooltipTimer = setTimeout(() => {
-        if (_tooltip) {
-          _tooltip.style.opacity = '1';
-          _tooltip.style.transform = 'translateX(0)';
-        }
-      }, 300);
-    });
-    _fab.addEventListener('mouseleave', () => {
-      _fab.style.transform = 'scale(1)';
-      _fab.style.boxShadow = '0 4px 20px rgba(0,0,0,0.4),0 0 0 1px rgba(124,58,237,0.3)';
-      clearTimeout(_tooltipTimer);
-      if (_tooltip) {
-        _tooltip.style.opacity = '0';
-        _tooltip.style.transform = isLeft ? 'translateX(-6px)' : 'translateX(6px)';
-      }
-    });
-    _fab.addEventListener('mousedown', () => { _fab.style.transform = 'scale(0.92)'; });
-    _fab.addEventListener('mouseup', () => { _fab.style.transform = 'scale(1.06)'; });
-
-    _fab.addEventListener('click', (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      if (_tooltip) _tooltip.style.opacity = '0';
-      _togglePanel();
-    });
-
-    _fab.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _togglePanel(); }
-    });
-
-    document.body.appendChild(_fab);
-
-    _tooltip = document.createElement('div');
-    _tooltip.id = 'relay-fab-tooltip';
-    _tooltip.textContent = 'Relay';
-    const tooltipRight = isLeft ? 'auto' : '82px';
-    const tooltipLeft = isLeft ? '82px' : 'auto';
-    const tooltipTransform = isLeft ? 'translateX(-6px)' : 'translateX(6px)';
-    _tooltip.style.cssText = `
-      position:fixed;${isLeft ? 'left' : 'right'}:82px;bottom:${Math.round(size / 2) + 10}px;z-index:2147483639;
-      background:rgba(14,14,18,0.95);color:#f8f8ff;
-      font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,sans-serif;
-      font-size:12px;font-weight:500;
-      padding:6px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);
-      backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-      white-space:nowrap;pointer-events:none;
-      opacity:0;transform:${tooltipTransform};
-      transition:opacity 150ms ease,transform 150ms ease;
-    `;
-    document.body.appendChild(_tooltip);
+    _fab.setAttribute('title', 'Relay (Alt+R) — drag to move');
+        sh.appendChild(_fab);
+    document.body.appendChild(_fabHost);
   }
 
   function _createPanel() {

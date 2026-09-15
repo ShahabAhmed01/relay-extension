@@ -1,149 +1,50 @@
-// SELECTOR_VERSION: 2026-Q2
-// Relay — Generic Fallback Scraper & Injector
-
-const GenericScraper = (() => {
-  let _observer = null;
-  let _callback = null;
-  let _debounceTimer = null;
-
-  function _findChatContainer() {
-    const candidates = document.querySelectorAll('main, [role="main"], [class*="chat"], [class*="conversation"], [class*="message"]');
-    let best = null;
-    let bestScore = 0;
-    candidates.forEach((el) => {
-      const text = el.textContent || '';
-      const score = text.length + (el.scrollHeight > el.clientHeight ? 100 : 0);
+// SELECTOR_VERSION: 2026-Q3
+// Relay v1.1.0 — Generic fallback (improved: dedupe, order-preserving, role alternation fix).
+(function () {
+  'use strict';
+  function findContainer() {
+    var best = null; var bestScore = 0;
+    document.querySelectorAll('main, [role="main"], [class*="chat"], [class*="conversation"]').forEach(function (el) {
+      var t = (el.textContent || '').length;
+      var score = t + (el.scrollHeight > el.clientHeight ? 200 : 0);
       if (score > bestScore) { bestScore = score; best = el; }
     });
     return best || document.body;
   }
-
-  function _classifyElement(el) {
-    const classes = (typeof el.className === 'string' ? el.className : '').toLowerCase();
-    const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
-    const dataRole = (el.getAttribute('data-role') || '').toLowerCase();
-    const combined = classes + ' ' + ariaLabel + ' ' + dataRole;
-
-    const userKeywords = ['user', 'human', 'you', 'question', 'prompt', 'sender'];
-    const aiKeywords = ['assistant', 'ai', 'bot', 'answer', 'response', 'model', 'agent'];
-
-    for (const kw of userKeywords) {
-      if (combined.includes(kw)) return 'user';
-    }
-    for (const kw of aiKeywords) {
-      if (combined.includes(kw)) return 'assistant';
-    }
+  function classify(el) {
+    var c = ((typeof el.className === 'string' ? el.className : '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.getAttribute('data-role') || '')).toLowerCase();
+    if (/\b(user|human|you-said|question|prompt)\b/.test(c)) return 'user';
+    if (/\b(assistant|ai-|bot|answer|response|model|copilot|claude|gemini)\b/.test(c)) return 'assistant';
     return null;
   }
-
-  function scrapeMessages() {
-    const messages = [];
-    let index = 0;
-    const container = _findChatContainer();
-    if (!container) return messages;
-
-    const allDivs = container.querySelectorAll('[class*="message"], [class*="turn"], [class*="chat"], [role="article"], article');
-    const seen = new Set();
-
-    allDivs.forEach((div) => {
-      const text = div.textContent.trim();
+  function scrape() {
+    var D = (typeof RelayDOM !== 'undefined') ? RelayDOM : null;
+    var get = D ? D.textOf : function (el) { return (el.textContent || '').trim(); };
+    var container = findContainer();
+    var out = []; var seen = new Set();
+    container.querySelectorAll('[class*="message"], [class*="turn"], [class*="chat"], [role="article"], article').forEach(function (div) {
+      if (div.querySelector('[class*="message"], [class*="turn"]')) return; // leaf nodes only
+      var text = get(div);
       if (!text || text.length < 3 || seen.has(text)) return;
       seen.add(text);
-
-      const role = _classifyElement(div);
-      if (role) {
-        messages.push({ role, content: text, index: index++ });
-      }
+      var role = classify(div);
+      if (role) out.push({ role: role, content: text, index: out.length });
     });
-
-    if (messages.length === 0) {
-      const children = Array.from(container.children);
-      children.forEach((child, i) => {
-        const text = child.textContent.trim();
-        if (!text || text.length < 5) return;
-        const role = i % 2 === 0 ? 'user' : 'assistant';
-        messages.push({ role, content: text, index: index++ });
+    if (!out.length) {
+      var kids = Array.from(container.children).filter(function (k) { return get(k).length > 5; });
+      kids.forEach(function (child, i) {
+        out.push({ role: i % 2 === 0 ? 'user' : 'assistant', content: get(child), index: out.length });
       });
     }
-
-    return messages;
+    return out;
   }
-
-  function hasConversation() {
-    const msgs = scrapeMessages();
-    return msgs.length > 0;
+  function has() { try { return scrape().length > 0; } catch (_e) { return false; } }
+  if (typeof RelayBase !== 'undefined') {
+    RelayBase.makeScraper({ scrape: scrape, hasConversation: has, container: findContainer }, 'GenericScraper');
+    RelayBase.makeInjector({
+      inputs: ['textarea', '[contenteditable="true"]', 'input[type="text"]'],
+      submits: ['button[type="submit"]', '[aria-label="Send"]', '[aria-label="Submit"]'],
+    }, 'GenericInjector');
   }
-
-  function observe(callback) {
-    if (_observer) { _observer.disconnect(); _observer = null; }
-    _callback = callback;
-    const container = _findChatContainer();
-    _observer = new MutationObserver(() => {
-      clearTimeout(_debounceTimer);
-      _debounceTimer = setTimeout(() => {
-        if (_callback) {
-          const msgs = scrapeMessages();
-          if (msgs.length > 0) _callback(msgs);
-        }
-      }, 300);
-    });
-    _observer.observe(container, { childList: true, subtree: true });
-  }
-
-  function disconnect() {
-    clearTimeout(_debounceTimer);
-    if (_observer) { _observer.disconnect(); _observer = null; }
-    _callback = null;
-  }
-
-  return { scrapeMessages, hasConversation, observe, disconnect };
 })();
 
-const GenericInjector = (() => {
-  function _getInput() {
-    return document.querySelector('textarea') ||
-           document.querySelector('[contenteditable="true"]') ||
-           document.querySelector('input[type="text"]');
-  }
-
-  function _getSubmitBtn() {
-    return document.querySelector('button[type="submit"]') ||
-           document.querySelector('[aria-label="Send"]') ||
-           document.querySelector('[aria-label="Submit"]');
-  }
-
-  async function injectText(text) {
-    const el = _getInput();
-    if (!el) return false;
-    if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
-      const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
-      const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
-      setter.call(el, text);
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    } else {
-      el.focus();
-      document.execCommand('selectAll', false, null);
-      document.execCommand('insertText', false, text);
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    return true;
-  }
-
-  async function submit() {
-    const btn = _getSubmitBtn();
-    if (btn && !btn.disabled) { btn.click(); return true; }
-    return false;
-  }
-
-  function isReady() {
-    return _getInput() !== null;
-  }
-
-  return { injectText, submit, isReady };
-})();
-
-if (typeof window !== 'undefined') {
-  window.GenericScraper = GenericScraper;
-  window.GenericInjector = GenericInjector;
-}
