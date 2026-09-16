@@ -16,7 +16,7 @@ var RelayToast = (function () {
     host.style.cssText = 'position:fixed;inset:auto 22px 82px auto;z-index:2147483645;pointer-events:none;';
     shadow = host.attachShadow({ mode: 'open' });
     var style = document.createElement('style');
-    style.textContent = '.t{pointer-events:auto;padding:10px 16px;border-radius:10px;font:500 13px system-ui,sans-serif;max-width:300px;margin-top:8px;opacity:0;transform:translateY(12px);transition:opacity .2s,transform .2s;border:1px solid rgba(0,0,0,.08);background:rgba(255,255,255,.96);color:#0d0d14;box-shadow:0 8px 24px rgba(0,0,0,.12);border-left:3px solid #7c3aed}.t.show{opacity:1;transform:none}.t.success{border-left-color:#10b981}.t.warning{border-left-color:#f59e0b}.t.error{border-left-color:#ef4444}@media(prefers-color-scheme:dark){.t{background:rgba(14,14,18,.96);color:#f8f8ff;border-color:rgba(255,255,255,.1)}}';
+    style.textContent = '.t{pointer-events:auto;padding:10px 16px;border-radius:10px;font:500 13px system-ui,sans-serif;max-width:300px;margin-top:8px;opacity:0;transform:translateY(12px);transition:opacity .2s,transform .2s;border:1px solid rgba(0,0,0,.08);background:rgba(255,255,255,.96);color:#0d0d14;box-shadow:0 8px 24px rgba(0,0,0,.12);border-left:3px solid #7c3aed}.t.show{opacity:1;transform:none}.t.success{border-left-color:#10b981}.t.warning{border-left-color:#f59e0b}.t.error{border-left-color:#ef4444}@media(prefers-color-scheme:dark){.t{background:rgba(14,14,18,.96);color:#f8f8ff;border-color:rgba(255,255,255,.1)}}@media(prefers-reduced-motion:reduce){.t{transition:none!important}}';
     shadow.appendChild(style);
     document.body.appendChild(host);
     return shadow;
@@ -48,19 +48,20 @@ var FloatingUI = (function () {
 
   var _fab = null;
   var _fabHost = null;
-  var _tooltip = null;
   var _panelHost = null;
   var _shadow = null;
   var _isOpen = false;
   var _eventsAttached = false;
-  var _tooltipTimer = null;
-  var _drag = null;
+  var _fabEventsAttached = false;
+  var _currentPlatform = null;
 
   const CLOSE_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
 
   const COPY_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
 
   const TRASH_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+
+  const GEAR_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
 
   function fabXY(pos) {
     if (pos === 'bottom-left') return { bottom: '22px', left: '22px', right: 'auto', top: 'auto' };
@@ -70,7 +71,7 @@ var FloatingUI = (function () {
   }
 
   function _createFAB(settings) {
-    if (document.getElementById('relay-fab')) return;
+    if (_fabHost && document.getElementById('relay-fab-host')) return;
     if (!document.getElementById('relay-fab-keyframes')) {
       var kf = document.createElement('style');
       kf.id = 'relay-fab-keyframes';
@@ -97,11 +98,76 @@ var FloatingUI = (function () {
     _fab.setAttribute('title', 'Relay (Alt+R) — drag to move');
         sh.appendChild(_fab);
     document.body.appendChild(_fabHost);
+    _attachFABEvents();
   }
 
-  function _createPanel() {
+  function _positionPanel(pos) {
+    if (!_panelHost) return;
+    var p = fabXY(pos);
+    _panelHost.style.top = p.top === 'auto' ? 'auto' : '82px';
+    _panelHost.style.bottom = p.bottom === 'auto' ? 'auto' : '82px';
+    _panelHost.style.left = p.left;
+    _panelHost.style.right = p.right;
+  }
+
+  // Drag-to-move with snap-to-corner, plus click and keyboard activation.
+  function _attachFABEvents() {
+    if (!_fab || _fabEventsAttached) return;
+    _fabEventsAttached = true;
+    var startX = 0, startY = 0, moved = false, activePointer = null;
+
+    function cornerFromPoint(x, y) {
+      var w = window.innerWidth || 0, h = window.innerHeight || 0;
+      return (y < h / 2 ? 'top' : 'bottom') + '-' + (x < w / 2 ? 'left' : 'right');
+    }
+
+    _fab.addEventListener('click', function () {
+      if (moved) { moved = false; return; } // swallow the click that follows a drag
+      _togglePanel();
+    });
+    _fab.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _togglePanel(); }
+    });
+    _fab.addEventListener('pointerdown', function (e) {
+      if (e.button !== 0) return;
+      activePointer = e.pointerId; startX = e.clientX; startY = e.clientY; moved = false;
+      try { _fab.setPointerCapture(e.pointerId); } catch (_e) {}
+    });
+    _fab.addEventListener('pointermove', function (e) {
+      if (activePointer === null || e.pointerId !== activePointer) return;
+      var dx = e.clientX - startX, dy = e.clientY - startY;
+      if (!moved && Math.sqrt(dx * dx + dy * dy) < 6) return;
+      moved = true;
+      _fabHost.style.top = Math.max(4, e.clientY - 26) + 'px';
+      _fabHost.style.left = Math.max(4, e.clientX - 26) + 'px';
+      _fabHost.style.bottom = 'auto';
+      _fabHost.style.right = 'auto';
+    });
+    _fab.addEventListener('pointerup', function (e) {
+      if (e.pointerId !== activePointer) return;
+      activePointer = null;
+      if (!moved) return;
+      e.preventDefault();
+      var corner = cornerFromPoint(e.clientX, e.clientY);
+      var p = fabXY(corner);
+      _fabHost.style.top = p.top; _fabHost.style.bottom = p.bottom;
+      _fabHost.style.left = p.left; _fabHost.style.right = p.right;
+      _positionPanel(corner);
+      if (typeof RelayStorage !== 'undefined') {
+        try { RelayStorage.saveSettings({ fabPosition: corner }); } catch (_e) {}
+      }
+      // moved stays true so the trailing click event is swallowed, then reset there.
+    });
+    _fab.addEventListener('pointercancel', function () {
+      activePointer = null;
+      setTimeout(function () { moved = false; }, 0);
+    });
+  }
+
+  function _createPanel(fabPosition) {
     _panelHost = document.createElement('relay-widget');
     _panelHost.style.cssText = 'position:fixed;bottom:82px;right:22px;z-index:2147483641;display:none;';
+    _positionPanel(fabPosition || 'bottom-right');
     _shadow = _panelHost.attachShadow({ mode: 'open' });
 
     const style = document.createElement('style');
@@ -620,12 +686,41 @@ var FloatingUI = (function () {
         background: var(--relay-bg-tertiary);
         color: var(--relay-text-primary);
       }
+
+      .relay-platform-search {
+        width: 100%;
+        padding: 8px 10px;
+        margin-bottom: 8px;
+        border: 1px solid var(--relay-border);
+        border-radius: var(--relay-radius-sm);
+        background: var(--relay-bg-tertiary);
+        color: var(--relay-text-primary);
+        font: 500 12px var(--relay-font);
+        outline: none;
+        transition: border-color var(--relay-t-fast) ease;
+      }
+      .relay-platform-search:focus { border-color: var(--relay-border-accent); }
+      .relay-platform-search::placeholder { color: var(--relay-text-muted); }
+
+      #relay-panel button:focus-visible,
+      #relay-panel input:focus-visible,
+      #relay-panel [tabindex="0"]:focus-visible {
+        outline: 2px solid var(--relay-accent-mid);
+        outline-offset: 1px;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #relay-panel, #relay-panel *, .relay-confirm-overlay, .relay-confirm-box {
+          animation: none !important;
+          transition: none !important;
+        }
+      }
     `;
   }
 
   function _getPanelHTML() {
     return `
-      <div id="relay-panel">
+      <div id="relay-panel" role="dialog" aria-label="Relay context panel">
         <div class="relay-header">
           <div class="relay-logo">
             <div class="relay-logo-icon">
@@ -670,7 +765,9 @@ var FloatingUI = (function () {
         <div class="relay-divider"><span>Continue on</span></div>
 
         <div class="relay-section">
-          <div class="relay-platform-grid" id="relay-platform-grid"></div>
+          <input type="text" id="relay-platform-search" class="relay-platform-search"
+                 placeholder="Search platforms…" aria-label="Search platforms" autocomplete="off">
+          <div class="relay-platform-grid" id="relay-platform-grid" role="listbox" aria-label="Switch to platform"></div>
         </div>
 
         <div class="relay-footer">
@@ -767,6 +864,44 @@ var FloatingUI = (function () {
       });
     }
 
+    const searchInput = _shadow.getElementById('relay-platform-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', () => _filterPlatformCards(searchInput.value));
+      searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          const first = _shadow.querySelector('.relay-platform-card:not([hidden])');
+          if (first) first.focus();
+        } else if (e.key === 'Escape') {
+          searchInput.value = '';
+          _filterPlatformCards('');
+        }
+      });
+    }
+
+    // Roving arrow-key navigation across platform cards.
+    grid.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      const cards = Array.from(_shadow.querySelectorAll('.relay-platform-card:not([hidden])'));
+      if (!cards.length) return;
+      const i = cards.indexOf(_shadow.activeElement);
+      const next = e.key === 'ArrowDown' ? cards[i + 1] : cards[i - 1];
+      if (next) { e.preventDefault(); next.focus(); }
+    });
+
+    // Esc closes the panel; Tab is trapped inside while it is open.
+    _shadow.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.stopPropagation(); _closePanel(); return; }
+      if (e.key !== 'Tab' || !_isOpen) return;
+      const focusables = Array.from(_shadow.querySelectorAll(
+        'button:not([disabled]), input, [tabindex="0"]'
+      )).filter((el) => el.offsetParent !== null || el.tagName === 'INPUT');
+      if (!focusables.length) return;
+      const first = focusables[0], last = focusables[focusables.length - 1];
+      if (e.shiftKey && _shadow.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && _shadow.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
+
     document.addEventListener('click', (e) => {
       if (_isOpen && _panelHost) {
         const path = e.composedPath();
@@ -841,6 +976,8 @@ var FloatingUI = (function () {
         card.appendChild(arrow);
         grid.appendChild(card);
       });
+      const searchInput = _shadow.getElementById('relay-platform-search');
+      _filterPlatformCards(searchInput ? searchInput.value : '');
     }
 
     const usage = await RelayStorage.getStorageUsage();
@@ -849,6 +986,16 @@ var FloatingUI = (function () {
     const pct = Math.min((usage.kb / 7000) * 100, 100);
     if (fill) fill.style.width = pct + '%';
     if (footerText) footerText.textContent = usage.kb + ' KB · ' + (session ? session.messageCount : 0) + ' messages stored';
+  }
+
+  function _filterPlatformCards(query) {
+    if (!_shadow) return;
+    var q = String(query || '').toLowerCase();
+    _shadow.querySelectorAll('.relay-platform-card').forEach(function (card) {
+      var nameEl = card.querySelector('.relay-platform-name');
+      var name = nameEl ? nameEl.textContent : '';
+      card.hidden = q !== '' && name.toLowerCase().indexOf(q) === -1;
+    });
   }
 
   function _showConfirm(message) {
@@ -884,6 +1031,9 @@ var FloatingUI = (function () {
 
       yesBtn.addEventListener('click', () => cleanup(true));
       noBtn.addEventListener('click', () => cleanup(false));
+      overlay.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') { e.stopPropagation(); cleanup(false); }
+      });
 
       actions.appendChild(noBtn);
       actions.appendChild(yesBtn);
@@ -905,11 +1055,13 @@ var FloatingUI = (function () {
   }
 
   async function _openPanel() {
-    if (!_panelHost) return;
+    if (!_panelHost || !_shadow) return;
     _panelHost.style.display = 'block';
     _isOpen = true;
     await _applyTheme();
     await _updatePanelContent();
+    const searchInput = _shadow.getElementById('relay-platform-search');
+    if (searchInput) searchInput.focus();
   }
 
   function _closePanel() {
@@ -959,7 +1111,7 @@ var FloatingUI = (function () {
     if (!settings.showFAB) return;
 
     _createFAB(settings);
-    _createPanel();
+    _createPanel(settings && settings.fabPosition);
     _attachPanelEvents();
     await _applyTheme();
 
@@ -969,7 +1121,7 @@ var FloatingUI = (function () {
     }
   }
 
-  return { init, setFABPulse, openPanel: _openPanel, closePanel: _closePanel };
+  return { init, setFABPulse, openPanel: _openPanel, closePanel: _closePanel, togglePanel: _togglePanel };
 })();
 
 if (typeof window !== 'undefined') {

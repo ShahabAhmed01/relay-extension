@@ -1,6 +1,7 @@
 /**
- * Relay v1.1.0 — Main Content Script Orchestrator
- * Immediate capture + SPA navigation + single-save debounce + retry injection.
+ * Relay — Main Content Script Orchestrator
+ * Immediate capture + lifecycle-aware SPA navigation + change-detected saves
+ * + retry injection. Keyboard shortcut is owned solely by the manifest command.
  */
 
 (function RelayContentInit() {
@@ -9,14 +10,19 @@
   if (typeof RelayStorage === 'undefined' || typeof RelayPlatforms === 'undefined') return;
 
   var platform = null;
-  try { platform = RelayPlatforms.detectPlatform(window.location.hostname); } catch (_e) {}
+  try {
+    platform = RelayPlatforms.detectPlatform(window.location.hostname, window.location.pathname);
+  } catch (_e) {}
   if (!platform) return;
 
   var scraper = null;
   var lastSaveAt = 0;
+  var lastCaptureSig = null;
   var saveInFlight = null;
+  var fallbackToastShown = false;
   var SAVE_DEBOUNCE = 1200;
   var lastUrl = window.location.href;
+  var navTimer = null;
 
   function debug() {
     try {
@@ -34,6 +40,21 @@
       try {
         var raw = scraper.scrapeMessages ? scraper.scrapeMessages() : [];
         if (!raw || !raw.length) return;
+        // Change detection: mutations re-fire constantly on streaming chats,
+        // so skip the save when the conversation signature is unchanged.
+        var sig = raw.length + '|' +
+          ((raw[0] && raw[0].content) || '').slice(0, 120) + '|' +
+          ((raw[raw.length - 1] && raw[raw.length - 1].content) || '').slice(0, 120);
+        if (reason !== 'immediate' && sig === lastCaptureSig) return;
+        lastCaptureSig = sig;
+        // Native selectors failed and we fell back to the generic parser —
+        // warn once instead of silently transferring possibly-garbled context.
+        if (scraper.usedGeneric && !fallbackToastShown && typeof RelayToast !== 'undefined') {
+          fallbackToastShown = true;
+          try {
+            RelayToast.show('Relay: using fallback capture on this site — verify context before switching.', 'warning', 5000);
+          } catch (_e0) {}
+        }
         var cleaned = (typeof RelaySanitize !== 'undefined')
           ? RelaySanitize.sanitizeForStorage(raw) : raw;
         if (!cleaned.length) return;
@@ -62,24 +83,39 @@
 
   function watchSpaNav() {
     function check() {
-      if (window.location.href !== lastUrl) {
-        lastUrl = window.location.href;
-        debug('spa nav', lastUrl);
-        try { if (scraper && scraper.disconnect) scraper.disconnect(); } catch (_e) {}
-        startObserver();
-        captureNow('immediate');
-      }
+      if (window.location.href === lastUrl) return;
+      lastUrl = window.location.href;
+      debug('spa nav', lastUrl);
+      try { if (scraper && scraper.disconnect) scraper.disconnect(); } catch (_e) {}
+      startObserver();
+      captureNow('immediate');
     }
-    setInterval(check, 1500);
-    window.addEventListener('popstate', function () { setTimeout(check, 100); });
+    // Framework routers announce navigation via the History API — wrap it.
     try {
       var push = history.pushState;
       history.pushState = function () {
         var r = push.apply(this, arguments);
-        setTimeout(check, 100);
+        setTimeout(check, 60);
         return r;
       };
     } catch (_e) {}
+    try {
+      var replace = history.replaceState;
+      history.replaceState = function () {
+        var r = replace.apply(this, arguments);
+        setTimeout(check, 60);
+        return r;
+      };
+    } catch (_e2) {}
+    window.addEventListener('popstate', check);
+    window.addEventListener('hashchange', check);
+    // Low-frequency safety net for routers that bypass the History API.
+    navTimer = setInterval(check, 5000);
+  }
+
+  function teardown() {
+    try { if (navTimer) clearInterval(navTimer); } catch (_e) {}
+    try { if (scraper && scraper.disconnect) scraper.disconnect(); } catch (_e2) {}
   }
 
   async function boot() {
@@ -94,10 +130,9 @@
     if (settings.autoCapture && scraper) {
       startObserver();
       watchSpaNav();
+      window.addEventListener('beforeunload', teardown);
+      window.addEventListener('pagehide', teardown);
       setTimeout(function () { captureNow('immediate'); }, 800);
-      window.addEventListener('beforeunload', function () {
-        try { if (scraper.disconnect) scraper.disconnect(); } catch (_e4) {}
-      });
     }
     if (typeof InjectorManager !== 'undefined' && InjectorManager.checkAndInject) {
       try { await InjectorManager.checkAndInject(); } catch (_e5) {}
@@ -109,6 +144,9 @@
           if (!message || typeof message.type !== 'string') return false;
           if (message.type === 'OPEN_PANEL') {
             if (typeof FloatingUI !== 'undefined') FloatingUI.openPanel();
+            sendResponse({ success: true });
+          } else if (message.type === 'TOGGLE_PANEL') {
+            if (typeof FloatingUI !== 'undefined') FloatingUI.togglePanel();
             sendResponse({ success: true });
           } else if (message.type === 'GET_SESSION') {
             RelayStorage.getSession().then(function (session) { sendResponse({ session: session }); });
@@ -131,11 +169,6 @@
         return false;
       });
     }
-    document.addEventListener('keydown', function (e) {
-      if (e.altKey && (e.key === 'r' || e.key === 'R')) {
-        try { if (typeof FloatingUI !== 'undefined') FloatingUI.togglePanel(); } catch (_e7) {}
-      }
-    });
   }
 
   boot();

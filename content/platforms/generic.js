@@ -31,7 +31,9 @@
       if (role) out.push({ role: role, content: text, index: out.length });
     });
     if (!out.length) {
-      var kids = Array.from(container.children).filter(function (k) { return get(k).length > 5; });
+      // Last-resort alternation heuristic: only accept substantial blocks so
+      // nav chrome / button labels don't get labelled as conversation turns.
+      var kids = Array.from(container.children).filter(function (k) { return get(k).length > 20; });
       kids.forEach(function (child, i) {
         out.push({ role: i % 2 === 0 ? 'user' : 'assistant', content: get(child), index: out.length });
       });

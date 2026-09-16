@@ -30,10 +30,7 @@
     "https://huggingface.co/chat/*",
     "https://poe.com/*",
     "https://chat.qwen.ai/*",
-    "https://tongyi.aliyun.com/*",
-    "https://you.com/*",
-    "https://www.blackbox.ai/*",
-    "https://www.phind.com/*"
+    "https://tongyi.aliyun.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -60,10 +57,7 @@
         "https://huggingface.co/chat/*",
         "https://poe.com/*",
         "https://chat.qwen.ai/*",
-        "https://tongyi.aliyun.com/*",
-        "https://you.com/*",
-        "https://www.blackbox.ai/*",
-        "https://www.phind.com/*"
+        "https://tongyi.aliyun.com/*"
       ],
       "js": [
         "browser-polyfill.js",
@@ -79,8 +73,6 @@
         "content/platforms/claude.js",
         "content/platforms/gemini.js",
         "content/platforms/adapters.js",
-        "content/platforms/adapters2.js",
-        "content/platforms/adapters3.js",
         "content/injector.js",
         "content/floatingUI.js",
         "content/content.js"
@@ -137,10 +129,7 @@
         "https://huggingface.co/*",
         "https://poe.com/*",
         "https://chat.qwen.ai/*",
-        "https://tongyi.aliyun.com/*",
-        "https://you.com/*",
-        "https://www.blackbox.ai/*",
-        "https://www.phind.com/*"
+        "https://tongyi.aliyun.com/*"
       ]
     }
   ],

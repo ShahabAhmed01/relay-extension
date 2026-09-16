@@ -6,8 +6,7 @@ npm-debug.log
 dist/
 *.zip
 
-# Tests
-tests/e2e/mocks/
+# Tests (mock fixtures are committed; they are required by the e2e suite)
 
 # OS / Editor
 .DS_Store

@@ -48,7 +48,7 @@
             <span class="setting-desc">Maximum number of messages to store per session</span>
           </div>
           <div class="slider-group">
-            <input type="range" id="setting-maxmessages" min="5" max="100" value="30" step="5">
+            <input type="range" id="setting-maxmessages" min="5" max="200" value="30" step="5">
             <span class="slider-value" id="maxmessages-value">30</span>
           </div>
         </div>
@@ -73,6 +73,40 @@
             <input type="checkbox" id="setting-confirm">
             <span class="toggle-slider"></span>
           </label>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <label class="setting-label">Auto-inject context</label>
+            <span class="setting-desc">Automatically paste captured context into the new platform's chat box when it opens</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="setting-autoinject" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <label class="setting-label">Copy as Markdown</label>
+            <span class="setting-desc">The Copy button exports a structured Markdown transcript instead of a plain one</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="setting-copymarkdown" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <label class="setting-label">Context size budget</label>
+            <span class="setting-desc">Trim the oldest messages so the transfer fits this character budget</span>
+            <span class="setting-desc" id="maxchars-estimate"></span>
+          </div>
+          <div class="slider-group">
+            <input type="range" id="setting-maxchars" min="20000" max="500000" value="120000" step="10000">
+            <span class="slider-value" id="maxchars-value">120K</span>
+          </div>
         </div>
       </section>
 
@@ -99,6 +133,8 @@
           <select id="setting-fabposition" class="select-input">
             <option value="bottom-right">Bottom-Right</option>
             <option value="bottom-left">Bottom-Left</option>
+            <option value="top-right">Top-Right</option>
+            <option value="top-left">Top-Left</option>
           </select>
         </div>
 
@@ -127,6 +163,17 @@
 
       <section id="section-privacy" class="options-section">
         <h2>Privacy & Data</h2>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <label class="setting-label">Debug logging</label>
+            <span class="setting-desc">Print Relay diagnostics to the browser console on AI sites</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="setting-debug">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
 
         <div class="privacy-notice">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -157,7 +204,7 @@
     </main>
 
     <footer class="options-footer">
-      <span>Relay v1.0.0</span>
+      <span data-version>Relay</span>
       <span>·</span>
       <span>Made with care for AI power users</span>
     </footer>
@@ -166,6 +213,7 @@
   <script src="../browser-polyfill.js"></script>
   <script src="../utils/storage.js"></script>
   <script src="../utils/compress.js"></script>
+  <script src="../utils/formatter.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

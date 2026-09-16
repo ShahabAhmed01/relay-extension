@@ -1,0 +1,39 @@
+name: Validate
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  lint-and-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # Lint and unit tests are dependency-free (stdlib only) — no npm install needed.
+      - name: Lint (syntax, manifest, privacy, parity audits)
+        run: node scripts/lint.js
+      - name: Unit tests
+        run: node --test "tests/unit/*.test.js"
+
+  package:
+    runs-on: ubuntu-latest
+    needs: lint-and-unit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Package Chrome build
+        run: node build-package.js --target=chrome
+      - name: Package Firefox build
+        run: node build-package.js --target=firefox
+      - uses: actions/upload-artifact@v4
+        with:
+          name: relay-packages
+          path: |
+            dist/*.zip
+            dist/*.sha256

@@ -1,37 +1,24 @@
 /**
- * Relay v1.1.0 — MV3 background service worker.
+ * Relay — MV3 background service worker.
  * Live badges, safe navigation, injection retry watchdog, history backup.
+ * Platform URLs/hosts come from the shared registry (single source of truth).
  */
+
+importScripts('content/platforms/index.js');
 
 (function () {
   'use strict';
 
-  var PLATFORM_URLS = Object.freeze({
-    chatgpt: 'https://chatgpt.com/',
-    claude: 'https://claude.ai/new',
-    gemini: 'https://gemini.google.com/app',
-    aistudio: 'https://aistudio.google.com/prompts/new_chat',
-    perplexity: 'https://www.perplexity.ai/',
-    deepseek: 'https://chat.deepseek.com/',
-    grok: 'https://grok.com/',
-    copilot: 'https://copilot.microsoft.com/',
-    metaai: 'https://www.meta.ai/',
-    mistral: 'https://chat.mistral.ai/chat',
-    huggingchat: 'https://huggingface.co/chat/',
-    poe: 'https://poe.com/',
-    qwen: 'https://chat.qwen.ai/',
-  });
+  // Derived from the platform registry — newChatUrl opens a fresh chat when set.
+  var PLATFORM_URLS = Object.freeze(RelayPlatforms.PLATFORMS.reduce(function (m, p) {
+    m[p.id] = p.newChatUrl || p.url;
+    return m;
+  }, {}));
 
-  var AI_HOSTS = [
-    'chat.openai.com', 'chatgpt.com', 'claude.ai',
-    'gemini.google.com', 'aistudio.google.com',
-    'perplexity.ai', 'www.perplexity.ai', 'chat.deepseek.com',
-    'grok.com', 'grok.x.ai',
-    'copilot.microsoft.com', 'copilot.cloud.microsoft',
-    'meta.ai', 'www.meta.ai', 'chat.mistral.ai',
-    'huggingface.co', 'poe.com',
-    'chat.qwen.ai', 'tongyi.aliyun.com',
-  ];
+  var AI_HOSTS = RelayPlatforms.PLATFORMS.reduce(function (arr, p) {
+    p.matches.forEach(function (m) { if (arr.indexOf(m) < 0) arr.push(m); });
+    return arr;
+  }, []);
 
   var DEFAULT_SETTINGS = Object.freeze({
     maxMessages: 30, autoCapture: true, showFAB: true,
@@ -127,7 +114,7 @@
       chrome.tabs.query({ active: true, currentWindow: true }).then(function (tabs) {
         var tab = tabs && tabs[0];
         if (!tab || !tab.id || !isSupportedUrl(tab.url || '')) return;
-        chrome.tabs.sendMessage(tab.id, { type: 'OPEN_PANEL' }).catch(function () {});
+        chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_PANEL' }).catch(function () {});
       }).catch(function () {});
     });
   }

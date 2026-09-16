@@ -20,7 +20,7 @@
       </div>
       <div class="logo-text">
         <span class="logo-name">Relay</span>
-        <span class="logo-version">v1.0.0</span>
+        <span class="logo-version" data-version></span>
       </div>
     </div>
     <div class="header-actions">
@@ -50,6 +50,7 @@
         <div class="session-actions">
           <button class="btn-primary" id="btn-open-panel">Open Panel ↗</button>
           <button class="btn-ghost" id="btn-copy">Copy</button>
+          <button class="btn-ghost" id="btn-copy-md" title="Copy as Markdown transcript">MD</button>
         </div>
       </div>
     </div>
@@ -71,6 +72,7 @@
   </footer>
 
   <script src="../browser-polyfill.js"></script>
+  <script src="../content/platforms/index.js"></script>
   <script src="../utils/storage.js"></script>
   <script src="../utils/compress.js"></script>
   <script src="../utils/formatter.js"></script>

@@ -9,12 +9,16 @@ var RelayBase = (function () {
   function makeScraper(opts, globalName) {
     var handle = null;
     function scrape() {
+      api.usedGeneric = false;
       try {
         var out = opts.scrape();
         if (out && out.length) return out;
       } catch (_e) { /* fall through to generic */ }
       try {
-        if (typeof GenericScraper !== 'undefined') return GenericScraper.scrapeMessages();
+        if (typeof GenericScraper !== 'undefined') {
+          api.usedGeneric = true; // native selectors failed — caller can warn
+          return GenericScraper.scrapeMessages();
+        }
       } catch (_e2) {}
       return [];
     }

@@ -4,10 +4,12 @@
  */
 
 (async function() {
-  // Display version from manifest
-  const footerVersion = document.querySelector('.options-footer span:first-child');
-  if (footerVersion && chrome.runtime && chrome.runtime.getManifest) {
-    footerVersion.textContent = 'Relay v' + chrome.runtime.getManifest().version;
+  const api = (typeof browser !== 'undefined' && browser.runtime) ? browser : chrome;
+
+  // Display version from manifest — no hardcoded version copy anywhere.
+  const footerVersion = document.querySelector('[data-version]');
+  if (footerVersion && api.runtime && api.runtime.getManifest) {
+    footerVersion.textContent = 'Relay v' + api.runtime.getManifest().version;
   }
 
   const navItems = document.querySelectorAll('.nav-item');
@@ -33,6 +35,12 @@
   const fabPosition = document.getElementById('setting-fabposition');
   const fabSize = document.getElementById('setting-fabsize');
   const showFAB = document.getElementById('setting-showfab');
+  const autoInject = document.getElementById('setting-autoinject');
+  const copyMarkdown = document.getElementById('setting-copymarkdown');
+  const maxCharsBudget = document.getElementById('setting-maxchars');
+  const maxCharsValue = document.getElementById('maxchars-value');
+  const maxCharsEstimate = document.getElementById('maxchars-estimate');
+  const debugLog = document.getElementById('setting-debug');
 
   const storageUsage = document.getElementById('storage-usage');
   const storageFill = document.getElementById('storage-fill');
@@ -65,6 +73,10 @@
   fabPosition.value = settings.fabPosition;
   if (fabSize) fabSize.value = settings.fabSize || 'normal';
   showFAB.checked = settings.showFAB;
+  if (autoInject) autoInject.checked = settings.autoInject;
+  if (copyMarkdown) copyMarkdown.checked = settings.copyMarkdown;
+  if (maxCharsBudget) maxCharsBudget.value = settings.maxChars;
+  if (debugLog) debugLog.checked = settings.debug;
 
   let saveTimeout = null;
   function debouncedSave() {
@@ -75,12 +87,17 @@
         maxMessages: parseInt(maxMessages.value, 10),
         includeFullHistory: fullHistory.checked,
         confirmBeforeSwitch: confirmSwitch.checked,
+        autoInject: autoInject ? autoInject.checked : true,
+        copyMarkdown: copyMarkdown ? copyMarkdown.checked : true,
+        maxChars: maxCharsBudget ? parseInt(maxCharsBudget.value, 10) : 120000,
         theme: theme.value,
         fabPosition: fabPosition.value,
         fabSize: fabSize ? fabSize.value : 'normal',
         showFAB: showFAB.checked,
+        debug: debugLog ? debugLog.checked : false,
       };
       await RelayStorage.saveSettings(settings);
+      updateEstimate();
     }, 300);
   }
 
@@ -98,6 +115,35 @@
   fabPosition.addEventListener('change', debouncedSave);
   if (fabSize) fabSize.addEventListener('change', debouncedSave);
   showFAB.addEventListener('change', debouncedSave);
+  if (autoInject) autoInject.addEventListener('change', debouncedSave);
+  if (copyMarkdown) copyMarkdown.addEventListener('change', debouncedSave);
+  if (maxCharsBudget) maxCharsBudget.addEventListener('input', () => {
+    if (maxCharsValue) maxCharsValue.textContent = Math.round(maxCharsBudget.value / 1000) + 'K';
+    updateEstimate();
+    debouncedSave();
+  });
+  if (debugLog) debugLog.addEventListener('change', debouncedSave);
+
+  // Show the consequence of the current capture settings, not just the numbers.
+  async function updateEstimate() {
+    if (!maxCharsEstimate) return;
+    try {
+      const session = await RelayStorage.getSession();
+      if (!session || !session.messages || !session.messages.length) {
+        maxCharsEstimate.textContent = 'Capture a conversation to see the estimated transfer size.';
+        return;
+      }
+      const picked = RelayFormatter.pickMessages(session, {
+        maxMessages: parseInt(maxMessages.value, 10),
+        includeFullHistory: fullHistory.checked,
+        maxChars: maxCharsBudget ? parseInt(maxCharsBudget.value, 10) : 120000,
+      });
+      const chars = picked.messages.reduce((n, m) => n + String(m.content || '').length, 0);
+      maxCharsEstimate.textContent = 'Estimated transfer: ~' +
+        Math.max(1, Math.round(chars / 1024)) + ' KB · ' +
+        picked.messages.length + ' of ' + picked.totalCount + ' messages';
+    } catch (_e) { /* cosmetic only */ }
+  }
 
   async function updateStorageInfo() {
     const usage = await RelayStorage.getStorageUsage();
@@ -110,6 +156,7 @@
   }
 
   await updateStorageInfo();
+  updateEstimate();
 
   if (btnExport) {
     btnExport.addEventListener('click', async () => {
@@ -159,6 +206,11 @@
         fabPosition.value = settings.fabPosition;
         if (fabSize) fabSize.value = settings.fabSize || 'normal';
         showFAB.checked = settings.showFAB;
+        if (autoInject) autoInject.checked = settings.autoInject;
+        if (copyMarkdown) copyMarkdown.checked = settings.copyMarkdown;
+        if (maxCharsBudget) maxCharsBudget.value = settings.maxChars;
+        if (debugLog) debugLog.checked = settings.debug;
+        updateEstimate();
       }
     });
   }

@@ -456,3 +456,6 @@ const RelayCompress = (() => {
 if (typeof window !== 'undefined') {
   window.RelayCompress = RelayCompress;
 }
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = RelayCompress;
+}

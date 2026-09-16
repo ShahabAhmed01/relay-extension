@@ -38,11 +38,11 @@
   const historyList = document.getElementById('history-list');
   const historyEmpty = document.getElementById('history-empty');
 
-  const PLATFORM_COLORS = {
-    chatgpt: '#10a37f', claude: '#d97706', gemini: '#4285f4', perplexity: '#20808d',
-    deepseek: '#4D6BFE', grok: '#1d9bf0', copilot: '#0078d4', metaai: '#0081fb',
-    mistral: '#ff7000', huggingchat: '#ff9d00', poe: '#5f2eea', qwen: '#615ced',
-  };
+  // Platform colors come from the shared registry — one source of truth.
+  const PLATFORM_COLORS = {};
+  if (typeof RelayPlatforms !== 'undefined') {
+    RelayPlatforms.getAllPlatforms().forEach((p) => { PLATFORM_COLORS[p.id] = p.color; });
+  }
 
   function timeAgo(timestamp) {
     if (!timestamp) return 'unknown';
@@ -144,6 +144,23 @@
       } catch (e) {
         btnCopy.textContent = 'Failed';
         setTimeout(() => { btnCopy.textContent = 'Copy'; }, 1500);
+      }
+    });
+  }
+
+  const btnCopyMd = document.getElementById('btn-copy-md');
+  if (btnCopyMd) {
+    btnCopyMd.addEventListener('click', async () => {
+      if (!currentSession) return;
+      const settings = await RelayStorage.getSettings();
+      const formatted = RelayFormatter.formatMarkdown(currentSession, settings);
+      try {
+        await navigator.clipboard.writeText(formatted);
+        btnCopyMd.textContent = 'Copied ✓';
+        setTimeout(() => { btnCopyMd.textContent = 'MD'; }, 1500);
+      } catch (e) {
+        btnCopyMd.textContent = 'Failed';
+        setTimeout(() => { btnCopyMd.textContent = 'MD'; }, 1500);
       }
     });
   }
