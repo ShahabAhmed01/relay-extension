@@ -1,18 +1,21 @@
 /**
- * Relay v1.1.0 — Injector Manager
- * Retry-safe injection: pending is kept until success / attempts exhausted.
+ * Relay v2 — Injection Manager.
+ * Picks up active transfers for the current platform and inserts parts
+ * into the destination composer. Insertion is VERIFIED; nothing is ever
+ * submitted automatically — sending is always the user's action.
  */
 
 var InjectorManager = (function () {
   'use strict';
 
-  var MAX_ATTEMPTS = 6;
+  var RETRY_DELAYS = [400, 800, 1500, 2500, 4000];
 
-  function pick(map, id, generic) {
-    if (map[id]) return map[id];
-    return generic || null;
+  function g(n) {
+    try {
+      if (typeof window !== 'undefined' && window[n]) return window[n];
+    } catch (_e) { /* ignore */ }
+    return null;
   }
-  function g(n) { try { return typeof window !== 'undefined' ? window[n] : null; } catch (_e) { return null; } }
 
   function getScraper(platformId) {
     var map = {
@@ -22,7 +25,7 @@ var InjectorManager = (function () {
       mistral: g('MistralScraper'), huggingchat: g('HuggingChatScraper'),
       poe: g('PoeScraper'), qwen: g('QwenScraper'),
     };
-    return pick(map, platformId, g('GenericScraper'));
+    return map[platformId] || g('GenericScraper');
   }
 
   function getInjector(platformId) {
@@ -33,91 +36,104 @@ var InjectorManager = (function () {
       mistral: g('MistralInjector'), huggingchat: g('HuggingChatInjector'),
       poe: g('PoeInjector'), qwen: g('QwenInjector'),
     };
+    return map[platformId] || g('GenericInjector');
+  }
 
-    return pick(map, platformId, g('GenericInjector'));
+  function api() {
+    return (typeof browser !== 'undefined' && browser.runtime) ? browser : chrome;
+  }
+
+  function send(message) {
+    return api().runtime.sendMessage(message);
   }
 
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
-  async function checkAndInject() {
-    if (typeof RelayStorage === 'undefined') return { injected: false, reason: 'no-storage' };
-    var settings = null;
-    try { settings = await RelayStorage.getSettings(); } catch (_e) {}
-    if (settings && settings.autoInject === false) return { injected: false, reason: 'disabled' };
-    var pending = await RelayStorage.getPendingInjection();
-    if (!pending || !pending.formattedContext) return { injected: false, reason: 'empty' };
-
+  /**
+   * Insert one transfer part into the composer, with retries while the
+   * page is still loading. Returns {injected, verified, reason}.
+   */
+  async function insertPartText(text) {
+    var loc = currentLocation();
     var platform = (typeof RelayPlatforms !== 'undefined')
-      ? RelayPlatforms.detectPlatform(window.location.hostname) : null;
+      ? RelayPlatforms.detectPlatform(loc.hostname, loc.pathname) : null;
     var platformId = platform ? platform.id : 'generic';
     var injector = getInjector(platformId);
-    if (!injector) return { injected: false, reason: 'no-injector' };
-    if (pending.targetPlatformId && pending.targetPlatformId !== platformId) {
-      return { injected: false, reason: 'wrong-target' };
-    }
-    var intervals = [400, 800, 1500, 2500, 4000];
-    var injected = false;
-    for (var i = 0; i < intervals.length; i++) {
-      await sleep(intervals[i]);
+    if (!injector) return { injected: false, verified: false, reason: 'no-injector' };
+    for (var i = 0; i < RETRY_DELAYS.length; i++) {
+      await sleep(RETRY_DELAYS[i]);
       try {
         if (injector.isReady && injector.isReady()) {
-          injected = await injector.injectText(pending.formattedContext);
-          if (injected) break;
+          await injector.injectText(text);
+          var res = injector.lastResult || {};
+          if (res.verified) return { injected: true, verified: true, reason: 'ok' };
+          if (res.injected) return { injected: true, verified: false, reason: 'unverified' };
         }
-      } catch (_e) {}
+      } catch (_e) { /* retry */ }
     }
-    if (injected) {
-      await RelayStorage.clearPendingInjection();
-      if (typeof RelayToast !== 'undefined') {
-        try { RelayToast.show('Context loaded — ready to continue', 'success'); } catch (_e2) {}
-      }
-      return { injected: true };
-    }
-    // Keep pending for the retry alarm; count attempts so we eventually expire.
-    try {
-      var p = await RelayStorage.bumpPendingAttempts();
-      if (p && (p.attempts || 0) >= MAX_ATTEMPTS) {
-        await RelayStorage.clearPendingInjection();
-        if (typeof RelayToast !== 'undefined') {
-          try { RelayToast.show('Relay: could not find the chat box — click Copy in the popup instead.', 'warning', 6000); } catch (_e3) {}
-        }
-        return { injected: false, reason: 'exhausted' };
-      }
-    } catch (_e4) {}
-    return { injected: false, reason: 'not-ready' };
+    return { injected: false, verified: false, reason: 'not-ready' };
   }
 
-  function injectIntoContentEditable(element, text) {
-    if (!element) return false;
+  function currentLocation() {
     try {
-      if (typeof RelayDOM !== 'undefined') return RelayDOM.insertIntoEditable(element, text);
-    } catch (_e) {}
-    try {
-      element.focus();
-      document.execCommand('selectAll', false, null);
-      document.execCommand('insertText', false, text);
-      element.dispatchEvent(new Event('input', { bubbles: true }));
-      return true;
-    } catch (_e2) { return false; }
+      if (typeof window !== 'undefined' && window.location) {
+        return { hostname: window.location.hostname, pathname: window.location.pathname };
+      }
+    } catch (_e) { /* non-browser */ }
+    return { hostname: '', pathname: '' };
   }
 
-  function injectIntoTextarea(element, text) {
-    if (!element) return false;
+  /**
+   * Boot-time pickup: if a transfer is waiting for this platform, insert
+   * the next pending part (when auto-insert is enabled) and report state
+   * so the panel can offer the rest of the flow.
+   */
+  async function checkAndInject() {
+    if (typeof RelayStorage === 'undefined') return { pickedUp: false, reason: 'no-storage' };
+    var loc = currentLocation();
+    var platform = (typeof RelayPlatforms !== 'undefined')
+      ? RelayPlatforms.detectPlatform(loc.hostname, loc.pathname) : null;
+    if (!platform) return { pickedUp: false, reason: 'unsupported' };
+
+    var resp;
     try {
-      if (typeof RelayDOM !== 'undefined') { RelayDOM.setNativeValue(element, text); return true; }
-    } catch (_e) {}
-    try {
-      element.value = text;
-      element.dispatchEvent(new Event('input', { bubbles: true }));
-      return true;
-    } catch (_e2) { return false; }
+      resp = await send({ type: 'GET_ACTIVE_TRANSFER', platformId: platform.id });
+    } catch (_e) {
+      return { pickedUp: false, reason: 'background-unavailable' };
+    }
+    var transfer = resp && resp.ok ? resp.transfer : null;
+    if (!transfer) return { pickedUp: false, reason: 'none' };
+
+    var nextIndex = -1;
+    for (var i = 0; i < transfer.parts.length; i++) {
+      if (transfer.parts[i].status === 'pending') { nextIndex = i; break; }
+    }
+    if (nextIndex < 0) return { pickedUp: true, transfer: transfer, reason: 'all-parts-delivered' };
+
+    var settings = await RelayStorage.getSettings();
+    if (!settings.autoInsert) {
+      return { pickedUp: true, transfer: transfer, reason: 'auto-insert-disabled', nextPart: nextIndex };
+    }
+
+    var partResp = await send({ type: 'GET_TRANSFER_PART', transferId: transfer.id, partIndex: nextIndex });
+    if (!partResp || !partResp.ok) return { pickedUp: true, transfer: transfer, reason: 'part-unavailable' };
+
+    var result = await insertPartText(partResp.part.text);
+    if (result.injected) {
+      await send({ type: 'MARK_TRANSFER_PART', transferId: transfer.id, partIndex: nextIndex, status: 'inserted' });
+      return {
+        pickedUp: true, transfer: transfer, insertedPart: nextIndex,
+        verified: result.verified, reason: result.verified ? 'inserted' : 'inserted-unverified',
+      };
+    }
+    return { pickedUp: true, transfer: transfer, reason: 'insert-failed', nextPart: nextIndex };
   }
 
   return {
-    getScraper: getScraper, getInjector: getInjector,
+    getScraper: getScraper,
+    getInjector: getInjector,
     checkAndInject: checkAndInject,
-    injectIntoContentEditable: injectIntoContentEditable,
-    injectIntoTextarea: injectIntoTextarea,
+    insertPartText: insertPartText,
   };
 })();
 

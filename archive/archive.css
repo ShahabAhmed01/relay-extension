@@ -1,0 +1,97 @@
+/* Relay v2 — archive browser page */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 15px; }
+.brand-logo {
+  width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.topbar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) 1fr;
+  gap: 16px;
+  padding: 16px 20px 24px;
+  max-width: 1280px;
+  margin: 0 auto;
+  min-height: calc(100vh - 57px);
+}
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 1fr; }
+}
+
+.search-row { margin-bottom: 10px; }
+#search { width: 100%; }
+
+.conv-list { display: flex; flex-direction: column; gap: 8px; max-height: calc(100vh - 180px); overflow-y: auto; padding-right: 4px; }
+.conv-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  cursor: pointer;
+  font-family: var(--font);
+  color: var(--text);
+}
+.conv-item:hover { border-color: var(--border-strong); }
+.conv-item.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.conv-item .ci-title { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conv-item .ci-meta { display: flex; gap: 8px; align-items: center; margin-top: 3px; font-size: 11.5px; color: var(--text-3); flex-wrap: wrap; }
+.conv-item .ci-excerpt { margin-top: 4px; font-size: 12px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ci-dot { width: 8px; height: 8px; border-radius: 3px; flex: none; }
+
+.empty { text-align: center; padding: 36px 16px; border: 1px dashed var(--border-strong); border-radius: var(--radius); color: var(--text-2); }
+.empty-title { font-weight: 700; margin-bottom: 4px; color: var(--text); }
+
+.usage-line { margin-top: 10px; padding: 6px 2px; }
+
+.detail-pane { min-width: 0; }
+.detail-head { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+.detail-head h2 { font-size: 17px; overflow-wrap: anywhere; }
+.detail-meta { font-size: 12.5px; margin-top: 3px; }
+.detail-meta2 { display: flex; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
+.detail-actions { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
+
+.messages {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: calc(100vh - 240px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.msg { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; }
+.msg.user { border-left: 3px solid var(--accent); }
+.msg.assistant { border-left: 3px solid var(--ok); }
+.msg-head { display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px; }
+.msg-role { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); }
+.msg-meta { font-size: 11px; color: var(--text-3); }
+.msg-rev { font-size: 11px; color: var(--warn); }
+.msg-body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+.msg-attachments { margin-top: 6px; display: flex; flex-direction: column; gap: 3px; }
+.att-row { font-size: 11.5px; color: var(--text-2); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.att-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; max-width: 280px; white-space: nowrap; }
+
+.toast {
+  position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+  background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+  border-radius: 10px; padding: 10px 16px; font-size: 13px; box-shadow: var(--shadow);
+  max-width: 480px; z-index: 50;
+}
+.toast.err { border-left-color: var(--err); }
+.toast.ok { border-left-color: var(--ok); }

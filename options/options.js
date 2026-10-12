@@ -1,217 +1,265 @@
 /**
- * Relay — Options Page Script
- * Handles settings management and data operations.
+ * Relay v2 — Settings page.
+ * Every control here is wired to real v2 settings; saved-state feedback
+ * is explicit. Archive operations go through the background service
+ * worker, which owns the IndexedDB archive.
  */
 
-(async function() {
-  const api = (typeof browser !== 'undefined' && browser.runtime) ? browser : chrome;
+(async function () {
+  'use strict';
 
-  // Display version from manifest — no hardcoded version copy anywhere.
-  const footerVersion = document.querySelector('[data-version]');
-  if (footerVersion && api.runtime && api.runtime.getManifest) {
-    footerVersion.textContent = 'Relay v' + api.runtime.getManifest().version;
+  const api = (typeof browser !== 'undefined' && browser.runtime) ? browser : chrome;
+  const send = (msg) => api.runtime.sendMessage(msg);
+  const $ = (id) => document.getElementById(id);
+
+  function toast(text, kind) {
+    const el = $('toast');
+    el.textContent = text;
+    el.className = 'toast ' + (kind || '');
+    el.hidden = false;
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.hidden = true; }, kind === 'err' ? 6000 : 2800);
   }
 
+  // Version.
+  const versionEl = document.querySelector('[data-version]');
+  if (versionEl && api.runtime.getManifest) {
+    versionEl.textContent = 'Relay v' + api.runtime.getManifest().version;
+  }
+
+  // --- Settings access via storage (settings are small and local-only) ----
+  async function getSettings() {
+    const stored = await api.storage.local.get('relay_settings');
+    const raw = stored.relay_settings || {};
+    const defaults = {
+      autoCapture: true, pausePlatforms: [], captureAttachments: false,
+      handoffMode: 'full', partBudget: 15000, continuationCount: 30,
+      autoInsert: true, confirmBeforeSwitch: false, includeBrief: false, copyMarkdown: true,
+      showFAB: true, fabPosition: 'bottom-right', fabSize: 'normal', theme: 'system', debug: false,
+    };
+    const s = Object.assign({}, defaults, raw);
+    if (!['full', 'multipart', 'continuation'].includes(s.handoffMode)) s.handoffMode = 'full';
+    if (!Array.isArray(s.pausePlatforms)) s.pausePlatforms = [];
+    return s;
+  }
+
+  async function saveSettings(patch) {
+    const current = await getSettings();
+    const merged = Object.assign({}, current, patch);
+    await api.storage.local.set({ relay_settings: merged });
+    return merged;
+  }
+
+  let settings = await getSettings();
+
+  // --- Navigation -----------------------------------------------------------
   const navItems = document.querySelectorAll('.nav-item');
   const sections = document.querySelectorAll('.options-section');
-
   navItems.forEach((item) => {
     item.addEventListener('click', () => {
-      navItems.forEach(n => n.classList.remove('active'));
-      sections.forEach(s => s.classList.remove('active'));
+      navItems.forEach((n) => n.classList.remove('active'));
+      sections.forEach((s) => s.classList.remove('active'));
       item.classList.add('active');
-      const sectionId = 'section-' + item.getAttribute('data-section');
-      const section = document.getElementById(sectionId);
+      const section = document.getElementById('section-' + item.dataset.section);
       if (section) section.classList.add('active');
     });
   });
 
-  const autoCapture = document.getElementById('setting-autocapture');
-  const maxMessages = document.getElementById('setting-maxmessages');
-  const maxMessagesValue = document.getElementById('maxmessages-value');
-  const fullHistory = document.getElementById('setting-fullhistory');
-  const confirmSwitch = document.getElementById('setting-confirm');
-  const theme = document.getElementById('setting-theme');
-  const fabPosition = document.getElementById('setting-fabposition');
-  const fabSize = document.getElementById('setting-fabsize');
-  const showFAB = document.getElementById('setting-showfab');
-  const autoInject = document.getElementById('setting-autoinject');
-  const copyMarkdown = document.getElementById('setting-copymarkdown');
-  const maxCharsBudget = document.getElementById('setting-maxchars');
-  const maxCharsValue = document.getElementById('maxchars-value');
-  const maxCharsEstimate = document.getElementById('maxchars-estimate');
-  const debugLog = document.getElementById('setting-debug');
+  // --- Theme ----------------------------------------------------------------
+  function applyTheme(themeValue) {
+    if (themeValue === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    else if (themeValue === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    else document.documentElement.removeAttribute('data-theme');
+  }
+  applyTheme(settings.theme);
 
-  const storageUsage = document.getElementById('storage-usage');
-  const storageFill = document.getElementById('storage-fill');
+  // --- Bind controls ----------------------------------------------------------
+  const autoCapture = $('setting-autocapture');
+  const partBudget = $('setting-partbudget');
+  const partBudgetLabel = $('partbudget-label');
+  const continuationCount = $('setting-continuationcount');
+  const continuationLabel = $('continuationcount-label');
+  const autoInsert = $('setting-autoinsert');
+  const confirmSwitch = $('setting-confirm');
+  const includeBrief = $('setting-brief');
+  const attachments = $('setting-attachments');
+  const theme = $('setting-theme');
+  const fabPosition = $('setting-fabposition');
+  const fabSize = $('setting-fabsize');
+  const showFAB = $('setting-showfab');
+  const debug = $('setting-debug');
 
-  const btnExport = document.getElementById('btn-export');
-  const btnClearSession = document.getElementById('btn-clear-session');
-  const btnClearHistory = document.getElementById('btn-clear-history');
-  const btnReset = document.getElementById('btn-reset');
-
-  function applyThemeToPage(themeValue) {
-    const root = document.documentElement;
-    if (themeValue === 'dark') {
-      root.setAttribute('data-theme', 'dark');
-    } else if (themeValue === 'light') {
-      root.setAttribute('data-theme', 'light');
-    } else {
-      root.removeAttribute('data-theme');
-    }
+  function render() {
+    autoCapture.checked = settings.autoCapture !== false;
+    partBudget.value = settings.partBudget;
+    partBudgetLabel.textContent = Math.round(settings.partBudget / 1000) + 'K characters per part';
+    continuationCount.value = settings.continuationCount;
+    continuationLabel.textContent = settings.continuationCount + ' most recent messages';
+    document.querySelectorAll('input[name="handoffmode"]').forEach((r) => {
+      r.checked = r.value === settings.handoffMode;
+    });
+    autoInsert.checked = settings.autoInsert !== false;
+    confirmSwitch.checked = settings.confirmBeforeSwitch === true;
+    includeBrief.checked = settings.includeBrief === true;
+    attachments.checked = settings.captureAttachments === true;
+    theme.value = settings.theme;
+    fabPosition.value = settings.fabPosition;
+    fabSize.value = settings.fabSize;
+    showFAB.checked = settings.showFAB !== false;
+    debug.checked = settings.debug === true;
+    renderPauseList();
   }
 
-  let settings = await RelayStorage.getSettings();
-  applyThemeToPage(settings.theme);
-
-  autoCapture.checked = settings.autoCapture;
-  maxMessages.value = settings.maxMessages;
-  maxMessagesValue.textContent = settings.maxMessages;
-  fullHistory.checked = settings.includeFullHistory;
-  confirmSwitch.checked = settings.confirmBeforeSwitch;
-  theme.value = settings.theme;
-  fabPosition.value = settings.fabPosition;
-  if (fabSize) fabSize.value = settings.fabSize || 'normal';
-  showFAB.checked = settings.showFAB;
-  if (autoInject) autoInject.checked = settings.autoInject;
-  if (copyMarkdown) copyMarkdown.checked = settings.copyMarkdown;
-  if (maxCharsBudget) maxCharsBudget.value = settings.maxChars;
-  if (debugLog) debugLog.checked = settings.debug;
-
-  let saveTimeout = null;
-  function debouncedSave() {
-    if (saveTimeout) clearTimeout(saveTimeout);
-    saveTimeout = setTimeout(async () => {
-      settings = {
-        autoCapture: autoCapture.checked,
-        maxMessages: parseInt(maxMessages.value, 10),
-        includeFullHistory: fullHistory.checked,
-        confirmBeforeSwitch: confirmSwitch.checked,
-        autoInject: autoInject ? autoInject.checked : true,
-        copyMarkdown: copyMarkdown ? copyMarkdown.checked : true,
-        maxChars: maxCharsBudget ? parseInt(maxCharsBudget.value, 10) : 120000,
-        theme: theme.value,
-        fabPosition: fabPosition.value,
-        fabSize: fabSize ? fabSize.value : 'normal',
-        showFAB: showFAB.checked,
-        debug: debugLog ? debugLog.checked : false,
-      };
-      await RelayStorage.saveSettings(settings);
-      updateEstimate();
-    }, 300);
-  }
-
-  autoCapture.addEventListener('change', debouncedSave);
-  maxMessages.addEventListener('input', () => {
-    maxMessagesValue.textContent = maxMessages.value;
-    debouncedSave();
-  });
-  fullHistory.addEventListener('change', debouncedSave);
-  confirmSwitch.addEventListener('change', debouncedSave);
-  theme.addEventListener('change', () => {
-    applyThemeToPage(theme.value);
-    debouncedSave();
-  });
-  fabPosition.addEventListener('change', debouncedSave);
-  if (fabSize) fabSize.addEventListener('change', debouncedSave);
-  showFAB.addEventListener('change', debouncedSave);
-  if (autoInject) autoInject.addEventListener('change', debouncedSave);
-  if (copyMarkdown) copyMarkdown.addEventListener('change', debouncedSave);
-  if (maxCharsBudget) maxCharsBudget.addEventListener('input', () => {
-    if (maxCharsValue) maxCharsValue.textContent = Math.round(maxCharsBudget.value / 1000) + 'K';
-    updateEstimate();
-    debouncedSave();
-  });
-  if (debugLog) debugLog.addEventListener('change', debouncedSave);
-
-  // Show the consequence of the current capture settings, not just the numbers.
-  async function updateEstimate() {
-    if (!maxCharsEstimate) return;
-    try {
-      const session = await RelayStorage.getSession();
-      if (!session || !session.messages || !session.messages.length) {
-        maxCharsEstimate.textContent = 'Capture a conversation to see the estimated transfer size.';
-        return;
-      }
-      const picked = RelayFormatter.pickMessages(session, {
-        maxMessages: parseInt(maxMessages.value, 10),
-        includeFullHistory: fullHistory.checked,
-        maxChars: maxCharsBudget ? parseInt(maxCharsBudget.value, 10) : 120000,
+  function renderPauseList() {
+    const wrap = $('pause-list');
+    wrap.textContent = '';
+    const platforms = [
+      ['chatgpt', 'ChatGPT'], ['claude', 'Claude'], ['gemini', 'Gemini'], ['aistudio', 'AI Studio'],
+      ['perplexity', 'Perplexity'], ['deepseek', 'DeepSeek'], ['grok', 'Grok'], ['copilot', 'Copilot'],
+      ['metaai', 'Meta AI'], ['mistral', 'Mistral'], ['huggingchat', 'HuggingChat'], ['poe', 'Poe'], ['qwen', 'Qwen'],
+    ];
+    platforms.forEach(([id, name]) => {
+      const chip = document.createElement('label');
+      chip.className = 'pause-chip' + (settings.pausePlatforms.includes(id) ? ' paused' : '');
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = settings.pausePlatforms.includes(id);
+      input.setAttribute('aria-label', 'Pause capture on ' + name);
+      input.addEventListener('change', async () => {
+        const list = new Set(settings.pausePlatforms);
+        if (input.checked) list.add(id); else list.delete(id);
+        settings = await saveSettings({ pausePlatforms: Array.from(list) });
+        renderPauseList();
+        toast(input.checked ? 'Capture paused on ' + name : 'Capture resumed on ' + name);
       });
-      const chars = picked.messages.reduce((n, m) => n + String(m.content || '').length, 0);
-      maxCharsEstimate.textContent = 'Estimated transfer: ~' +
-        Math.max(1, Math.round(chars / 1024)) + ' KB · ' +
-        picked.messages.length + ' of ' + picked.totalCount + ' messages';
-    } catch (_e) { /* cosmetic only */ }
+      const label = document.createElement('span');
+      label.textContent = name;
+      chip.appendChild(input);
+      chip.appendChild(label);
+      wrap.appendChild(chip);
+    });
   }
 
-  async function updateStorageInfo() {
-    const usage = await RelayStorage.getStorageUsage();
-    storageUsage.textContent = usage.kb + ' KB';
-    const pct = Math.min((usage.kb / 7000) * 100, 100);
-    storageFill.style.width = pct + '%';
-    if (usage.kb > 7000) {
-      storageFill.style.background = 'linear-gradient(90deg, #ef4444, #f59e0b)';
+  let saveTimer = null;
+  function debouncedSave(patch, after) {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      try {
+        settings = await saveSettings(patch);
+        if (after) after();
+        toast('Saved');
+      } catch (e) {
+        toast('Could not save settings: ' + e.message, 'err');
+      }
+    }, 250);
+  }
+
+  autoCapture.addEventListener('change', () => debouncedSave({ autoCapture: autoCapture.checked }));
+  partBudget.addEventListener('input', () => {
+    partBudgetLabel.textContent = Math.round(partBudget.value / 1000) + 'K characters per part';
+    debouncedSave({ partBudget: parseInt(partBudget.value, 10) });
+  });
+  continuationCount.addEventListener('input', () => {
+    continuationLabel.textContent = continuationCount.value + ' most recent messages';
+    debouncedSave({ continuationCount: parseInt(continuationCount.value, 10) });
+  });
+  document.querySelectorAll('input[name="handoffmode"]').forEach((radio) => {
+    radio.addEventListener('change', () => {
+      if (radio.checked) debouncedSave({ handoffMode: radio.value });
+    });
+  });
+  autoInsert.addEventListener('change', () => debouncedSave({ autoInsert: autoInsert.checked }));
+  confirmSwitch.addEventListener('change', () => debouncedSave({ confirmBeforeSwitch: confirmSwitch.checked }));
+  includeBrief.addEventListener('change', () => debouncedSave({ includeBrief: includeBrief.checked }));
+  attachments.addEventListener('change', () => {
+    debouncedSave({ captureAttachments: attachments.checked }, () => {
+      toast(attachments.checked
+        ? 'Attachment files will now be stored locally when the site allows it.'
+        : 'Only attachment references will be kept from now on.');
+    });
+  });
+  theme.addEventListener('change', () => {
+    applyTheme(theme.value);
+    debouncedSave({ theme: theme.value });
+  });
+  fabPosition.addEventListener('change', () => debouncedSave({ fabPosition: fabPosition.value }));
+  fabSize.addEventListener('change', () => debouncedSave({ fabSize: fabSize.value }));
+  showFAB.addEventListener('change', () => debouncedSave({ showFAB: showFAB.checked }));
+  debug.addEventListener('change', () => debouncedSave({ debug: debug.checked }));
+
+  render();
+
+  // --- Storage snapshot ---------------------------------------------------------
+  async function updateStorage() {
+    const usageEl = $('storage-usage');
+    const fill = $('storage-fill');
+    const detail = $('storage-detail');
+    try {
+      const resp = await send({ type: 'GET_CAPTURE_STATE', url: 'https://chatgpt.com/', platformId: 'chatgpt' });
+      const storage = resp && resp.ok ? resp.state.storage : null;
+      if (storage && storage.quota) {
+        const pct = Math.min(100, Math.round((storage.usage / storage.quota) * 100));
+        usageEl.textContent = Math.round(storage.usage / 1024) + ' KB used';
+        fill.style.width = pct + '%';
+        fill.className = 'storage-fill' + (pct > 90 ? ' err' : pct > 75 ? ' warn' : '');
+        detail.textContent = 'Approximately ' + pct + '% of the storage this browser grants extensions (' +
+          Math.round(storage.quota / 1024 / 1024) + ' MB). Relay stays functional under pressure; if saves ever fail, the panel tells you instead of silently dropping messages.';
+      } else {
+        usageEl.textContent = 'This browser does not report storage usage.';
+        detail.textContent = '';
+      }
+    } catch (_e) {
+      usageEl.textContent = 'unknown';
     }
   }
+  updateStorage();
 
-  await updateStorageInfo();
-  updateEstimate();
-
-  if (btnExport) {
-    btnExport.addEventListener('click', async () => {
-      const data = await RelayStorage.exportAll();
-      const blob = new Blob([data], { type: 'application/json' });
+  // --- Data actions ---------------------------------------------------------------
+  $('btn-export-all').addEventListener('click', async () => {
+    try {
+      const resp = await send({ type: 'EXPORT_ARCHIVE' });
+      if (!resp || !resp.ok) throw new Error((resp && (resp.error || resp.detail)) || 'export failed');
+      const blob = new Blob([JSON.stringify(resp.export, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'relay-export-' + new Date().toISOString().slice(0, 10) + '.json';
+      a.download = resp.filename || 'relay-archive.json';
       document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    });
-  }
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 800);
+      toast('Archive exported.', 'ok');
+    } catch (e) {
+      toast('Export failed: ' + e.message, 'err');
+    }
+  });
 
-  if (btnClearSession) {
-    btnClearSession.addEventListener('click', async () => {
-      if (confirm('Clear current session? This cannot be undone.')) {
-        await RelayStorage.clearSession();
-        await updateStorageInfo();
-      }
-    });
-  }
+  $('btn-import').addEventListener('click', () => $('import-file').click());
+  $('import-file').addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      const payload = JSON.parse(await file.text());
+      const resp = await send({ type: 'IMPORT_ARCHIVE', payload });
+      if (!resp || !resp.ok) throw new Error((resp && (resp.error || resp.detail)) || 'invalid archive');
+      const r = resp.report;
+      toast('Imported ' + r.conversations + ' conversation(s): +' + r.messagesAdded + ' messages.', 'ok');
+    } catch (err) {
+      toast('Import failed: ' + err.message, 'err');
+    } finally {
+      e.target.value = '';
+    }
+  });
 
-  if (btnClearHistory) {
-    btnClearHistory.addEventListener('click', async () => {
-      if (confirm('Clear all session history? This cannot be undone.')) {
-        await RelayStorage.clearHistory();
-        await updateStorageInfo();
-      }
-    });
-  }
-
-  if (btnReset) {
-    btnReset.addEventListener('click', async () => {
-      if (confirm('Reset all settings to defaults? This cannot be undone.')) {
-        await RelayStorage.saveSettings(RelayStorage.DEFAULT_SETTINGS);
-        settings = await RelayStorage.getSettings();
-        applyThemeToPage(settings.theme);
-        autoCapture.checked = settings.autoCapture;
-        maxMessages.value = settings.maxMessages;
-        maxMessagesValue.textContent = settings.maxMessages;
-        fullHistory.checked = settings.includeFullHistory;
-        confirmSwitch.checked = settings.confirmBeforeSwitch;
-        theme.value = settings.theme;
-        fabPosition.value = settings.fabPosition;
-        if (fabSize) fabSize.value = settings.fabSize || 'normal';
-        showFAB.checked = settings.showFAB;
-        if (autoInject) autoInject.checked = settings.autoInject;
-        if (copyMarkdown) copyMarkdown.checked = settings.copyMarkdown;
-        if (maxCharsBudget) maxCharsBudget.value = settings.maxChars;
-        if (debugLog) debugLog.checked = settings.debug;
-        updateEstimate();
-      }
-    });
-  }
+  $('btn-delete-all').addEventListener('click', async () => {
+    if (!confirm('Delete EVERY archived conversation?\n\nThis clears all captured messages and attachment records. Settings are kept. It cannot be undone. Export a backup first if unsure.')) return;
+    if (!confirm('Final confirmation — delete all archives?')) return;
+    const resp = await send({ type: 'DELETE_ALL_CONVERSATIONS' });
+    if (resp && resp.ok) {
+      toast('All archives deleted.', 'ok');
+      updateStorage();
+    } else {
+      toast('Delete failed.', 'err');
+    }
+  });
 })();

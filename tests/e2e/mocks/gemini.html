@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Gemini Virtualized Mock</title>
+<style>
+  body { margin: 0; font-family: system-ui; }
+  chat-window { display: block; }
+  #scroller { height: 260px; overflow-y: auto; border: 1px solid #ccc; }
+  user-query, model-response { display: block; padding: 8px; margin: 4px 0; border-radius: 6px; }
+  user-query { background: #e7f0ff; }
+  model-response { background: #eef7ee; }
+  rich-textarea .ql-editor { border: 1px solid #999; min-height: 40px; }
+</style>
+</head>
+<body>
+  <chat-window>
+    <div id="scroller"><div id="inner"></div></div>
+  </chat-window>
+  <rich-textarea><div class="ql-editor" contenteditable="true" role="textbox" aria-label="Ask Gemini"></div></rich-textarea>
+  <script>
+    // Simulates a virtualized conversation: 12 messages exist, but only
+    // the newest 4 are rendered initially. Scrolling to the top "loads"
+    // older messages progressively, like a real virtualized chat.
+    (function () {
+      var TOTAL = 12;
+      var rendered = 0;
+      var inner = document.getElementById('inner');
+      function makeMsg(i) {
+        var isUser = i % 2 === 0;
+        var el = document.createElement(isUser ? 'user-query' : 'model-response');
+        var t = document.createElement('div');
+        t.className = isUser ? 'query-text' : 'response-content';
+        t.textContent = (isUser ? 'virtualized user message ' : 'virtualized answer ') + i;
+        el.appendChild(t);
+        return el;
+      }
+      function renderUpTo(count) {
+        for (var i = rendered; i < count && i < TOTAL; i++) {
+          inner.appendChild(makeMsg(i));
+        }
+        rendered = Math.max(rendered, Math.min(count, TOTAL));
+      }
+      renderUpTo(8); // start near the end but with some history visible
+      var scroller = document.getElementById('scroller');
+      scroller.scrollTop = scroller.scrollHeight;
+      scroller.addEventListener('scroll', function () {
+        if (scroller.scrollTop < 60 && rendered < TOTAL) {
+          setTimeout(function () {
+            var atBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+            renderUpTo(rendered + 2);
+            // keep the previous viewport roughly stable like real UIs do
+            scroller.scrollTop = 80;
+          }, 80);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

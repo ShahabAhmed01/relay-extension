@@ -1,14 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Relay - AI Context Bridge",
-  "version": "1.1.0",
-  "description": "Capture AI conversation context locally and continue it on another AI platform. 100% local, no servers.",
+  "version": "2.0.0",
+  "description": "Capture AI conversations losslessly on your device and continue them on any other AI platform. 100% local, no servers.",
   "author": "Shahab Ahmed",
   "minimum_chrome_version": "116",
   "permissions": [
     "storage",
-    "tabs",
-    "alarms"
+    "tabs"
   ],
   "host_permissions": [
     "https://chat.openai.com/*",
@@ -62,9 +61,7 @@
       "js": [
         "browser-polyfill.js",
         "utils/storage.js",
-        "utils/sanitize.js",
-        "utils/formatter.js",
-        "utils/compress.js",
+        "utils/reconcile.js",
         "utils/dom.js",
         "content/platforms/index.js",
         "content/platforms/base.js",
@@ -74,6 +71,7 @@
         "content/platforms/gemini.js",
         "content/platforms/adapters.js",
         "content/injector.js",
+        "content/fullCapture.js",
         "content/floatingUI.js",
         "content/content.js"
       ],

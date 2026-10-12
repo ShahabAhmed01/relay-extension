@@ -1,36 +1,40 @@
 /**
- * Relay — Platform adapters (thin configs over RelayBase).
- * One file, one entry per platform: scraper + injector selectors.
- * SELECTOR_VERSION: 2026-Q3
+ * Relay v2 — Platform adapters (thin configs over RelayBase + RelayDOM).
+ * One entry per platform: scraper + injector selectors.
+ *
+ * v2 changes vs v1:
+ *  - No text-based dedup anywhere — repeated identical messages are
+ *    separate turns (RelayDOM.collectMessages dedupes by element only).
+ *  - Structured text extraction + attachment discovery come from
+ *    RelayDOM.collectMessages automatically.
+ * SELECTOR_VERSION: 2026-Q4
  */
 (function () {
   'use strict';
 
-  function text(el) {
-    try { if (typeof RelayDOM !== 'undefined') return RelayDOM.textOf(el); } catch (_e) {}
-    return (el.textContent || '').trim();
-  }
-  function collect(selector, isUserFn, minLen) {
-    var out = []; var seen = new Set();
-    document.querySelectorAll(selector).forEach(function (el) {
-      var t = text(el);
-      if (!t || t.length < (minLen || 2) || seen.has(t)) return;
-      seen.add(t);
-      out.push({ role: isUserFn(el) ? 'user' : 'assistant', content: t, index: out.length });
-    });
-    return out;
-  }
-  function hasAny(selector) {
-    try { return document.querySelectorAll(selector).length > 0; } catch (_e) { return false; }
-  }
-  function cls(el) { return (typeof el.className === 'string' ? el.className : ''); }
-  function byClass(re) {
-    return function (el) { return re.test(cls(el)) || el.getAttribute('data-role') === 'user'; };
-  }
   function reg(a) {
     if (typeof RelayBase === 'undefined') return;
-    RelayBase.makeScraper({ scrape: a.scrape, hasConversation: function () { return hasAny(a.has); }, container: a.container }, a.scraper);
+    RelayBase.makeScraper({
+      scrape: a.scrape,
+      hasConversation: function () {
+        try { return document.querySelectorAll(a.has).length > 0; } catch (_e) { return false; }
+      },
+      container: a.container,
+    }, a.scraper);
     RelayBase.makeInjector({ inputs: a.inputs, submits: a.submits }, a.injector);
+  }
+
+  function collect(selector, roleOf, opts) {
+    var D = (typeof RelayDOM !== 'undefined') ? RelayDOM : null;
+    if (!D) return [];
+    return D.collectMessages(selector, roleOf, opts || {});
+  }
+
+  function byAttr(name, userVal) {
+    return function (el) { return el.getAttribute(name) === userVal ? 'user' : 'assistant'; };
+  }
+  function byClass(re) {
+    return function (el) { return re.test(typeof el.className === 'string' ? el.className : '') ? 'user' : 'assistant'; };
   }
 
   // --- Perplexity -----------------------------------------------------------
@@ -38,7 +42,9 @@
     scraper: 'PerplexityScraper', injector: 'PerplexityInjector',
     scrape: function () {
       return collect('[class*="UserMessage"], [data-testid="user-message"], [class*="AnswerLayout"], [class*="answer-text"]',
-        function (el) { return el.matches('[class*="UserMessage"]') || el.matches('[data-testid="user-message"]'); });
+        function (el) {
+          return (el.matches('[class*="UserMessage"]') || el.matches('[data-testid="user-message"]')) ? 'user' : 'assistant';
+        });
     },
     has: '[class*="UserMessage"], [data-testid="user-message"]',
     container: function () { return document.querySelector('main [class*="ConversationPage"], main') || document.body; },
@@ -49,7 +55,8 @@
   reg({
     scraper: 'DeepSeekScraper', injector: 'DeepSeekInjector',
     scrape: function () {
-      return collect('[class*="user-message"], [class*="humanMessage"], [class*="assistant-message"], [class*="ds-markdown"]', byClass(/user|human/i));
+      return collect('[class*="user-message"], [class*="humanMessage"], [class*="assistant-message"], [class*="ds-markdown"]',
+        byClass(/user|human/i));
     },
     has: '[class*="user-message"], [class*="humanMessage"]',
     container: function () { return document.querySelector('#chat-container, main') || document.body; },
@@ -61,7 +68,10 @@
     scraper: 'GrokScraper', injector: 'GrokInjector',
     scrape: function () {
       return collect('[class*="UserMessage"], [data-role="user"], [class*="AssistantMessage"], [data-role="assistant"]',
-        function (el) { return cls(el).includes('User') || el.getAttribute('data-role') === 'user'; });
+        function (el) {
+          return (typeof el.className === 'string' && el.className.includes('User')) ||
+            el.getAttribute('data-role') === 'user' ? 'user' : 'assistant';
+        });
     },
     has: '[class*="UserMessage"], [data-role="user"]',
     container: function () { return document.querySelector('main [class*="conversation"], main') || document.body; },
@@ -73,7 +83,11 @@
     scraper: 'CopilotScraper', injector: 'CopilotInjector',
     scrape: function () {
       return collect('[data-content="user-message"], [class*="user-message"], [data-role="user"], [data-content="ai-message"], [class*="ai-message"], [data-role="assistant"]',
-        function (el) { return el.getAttribute('data-content') === 'user-message' || cls(el).includes('user') || el.getAttribute('data-role') === 'user'; }, 3);
+        function (el) {
+          return el.getAttribute('data-content') === 'user-message' ||
+            (typeof el.className === 'string' && el.className.includes('user')) ||
+            el.getAttribute('data-role') === 'user' ? 'user' : 'assistant';
+        }, { minLen: 3 });
     },
     has: '[data-content="user-message"], [class*="user-message"], [data-role="user"]',
     container: function () { return document.querySelector('[class*="conversation"], main') || document.body; },
@@ -85,7 +99,11 @@
     scraper: 'MetaAIScraper', injector: 'MetaAIInjector',
     scrape: function () {
       return collect('[aria-label*="You said"], [data-role="user"], [class*="user-message"], [aria-label*="Meta AI"], [data-role="assistant"], [class*="assistant-message"]',
-        function (el) { return (el.getAttribute('aria-label') || '').includes('You said') || el.getAttribute('data-role') === 'user' || cls(el).includes('user'); }, 3);
+        function (el) {
+          return (el.getAttribute('aria-label') || '').includes('You said') ||
+            el.getAttribute('data-role') === 'user' ||
+            (typeof el.className === 'string' && el.className.includes('user')) ? 'user' : 'assistant';
+        }, { minLen: 3 });
     },
     has: '[aria-label*="You said"], [data-role="user"], [class*="user-message"]',
     container: function () { return document.querySelector('[role="main"]') || document.body; },
@@ -96,7 +114,8 @@
   reg({
     scraper: 'MistralScraper', injector: 'MistralInjector',
     scrape: function () {
-      return collect('[class*="UserMessage"], [data-role="user"], [class*="AssistantMessage"], [data-role="assistant"]', byClass(/User/));
+      return collect('[class*="UserMessage"], [data-role="user"], [class*="AssistantMessage"], [data-role="assistant"]',
+        byClass(/User/));
     },
     has: '[class*="UserMessage"], [data-role="user"]',
     container: function () { return document.querySelector('main [class*="Chat"], main') || document.body; },
@@ -107,7 +126,8 @@
   reg({
     scraper: 'HuggingChatScraper', injector: 'HuggingChatInjector',
     scrape: function () {
-      return collect('[class*="message"][class*="user"], [data-role="user"], [class*="message"][class*="bot"], [class*="message"][class*="assistant"]', byClass(/user/));
+      return collect('[class*="message"][class*="user"], [data-role="user"], [class*="message"][class*="bot"], [class*="message"][class*="assistant"]',
+        byClass(/user/));
     },
     has: '[class*="message"][class*="user"], [data-role="user"]',
     container: function () { return document.querySelector('.overflow-y-auto main, main') || document.body; },
@@ -119,7 +139,9 @@
     scraper: 'PoeScraper', injector: 'PoeInjector',
     scrape: function () {
       return collect('[class*="humanMessage"], [class*="Message_humanMessage"], [class*="botMessage"], [class*="Message_botMessage"]',
-        function (el) { return typeof el.className === 'string' && el.className.includes('human'); }, 3);
+        function (el) {
+          return typeof el.className === 'string' && el.className.includes('human') ? 'user' : 'assistant';
+        }, { minLen: 3 });
     },
     has: '[class*="humanMessage"], [class*="Message_humanMessage"]',
     container: function () { return document.querySelector('[class*="ChatMessagesView"], main') || document.body; },
@@ -130,7 +152,8 @@
   reg({
     scraper: 'QwenScraper', injector: 'QwenInjector',
     scrape: function () {
-      return collect('[class*="user-message"], [class*="assistant-message"], [class*="human"], [class*="robot"]', byClass(/user|human/));
+      return collect('[class*="user-message"], [class*="assistant-message"], [class*="human"], [class*="robot"]',
+        byClass(/user|human/));
     },
     has: '[class*="user-message"], [class*="human"]',
     container: function () { return document.querySelector('[class*="chat-list"], main') || document.body; },
@@ -144,10 +167,10 @@
       return collect('ms-prompt-turn, ms-candidate-turn, [class*="prompt-turn"], [class*="candidate-turn"]',
         function (el) {
           var tag = (el.tagName || '').toLowerCase();
-          if (tag.indexOf('prompt') !== -1) return true;
-          if (tag.indexOf('candidate') !== -1) return false;
-          return byClass(/prompt|user|human/)(el);
-        }, 3);
+          if (tag.indexOf('prompt') !== -1) return 'user';
+          if (tag.indexOf('candidate') !== -1) return 'assistant';
+          return /prompt|user|human/.test(typeof el.className === 'string' ? el.className : '') ? 'user' : 'assistant';
+        }, { minLen: 3 });
     },
     has: 'ms-prompt-turn, ms-candidate-turn',
     container: function () { return document.querySelector('main, ms-chat-window') || document.body; },
@@ -155,4 +178,3 @@
     submits: ['button[aria-label="Send"]', 'button[type="submit"]'],
   });
 })();
-

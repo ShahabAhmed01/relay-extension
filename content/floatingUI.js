@@ -1,7 +1,17 @@
 /**
- * Relay v1.1.0 — Floating UI
- * Shadow-DOM FAB + panel. Adds: 4-corner positions, draggable FAB,
- * keyboard support (Esc/Alt+R), focus trap, toast inside shadow root.
+ * Relay v2 — Floating UI: draggable FAB + shadow-DOM panel.
+ *
+ * Panel sections:
+ *   1. Header      — identity, platform, capture status, settings/close.
+ *   2. Health      — conversation, captured count, completeness (plain
+ *                    language), last update, warnings with actions.
+ *   3. Switch      — destination picker with search + context mode
+ *                    (full / multi-part / recent) + transfer preview.
+ *   4. Transfer    — part-by-part progression on the destination side.
+ *   5. Secondary   — review transcript, copy markdown, export, archive.
+ *
+ * Every status shown here corresponds to real program state. Nothing
+ * turns green unless the operation actually succeeded.
  */
 
 var RelayToast = (function () {
@@ -16,15 +26,15 @@ var RelayToast = (function () {
     host.style.cssText = 'position:fixed;inset:auto 22px 82px auto;z-index:2147483645;pointer-events:none;';
     shadow = host.attachShadow({ mode: 'open' });
     var style = document.createElement('style');
-    style.textContent = '.t{pointer-events:auto;padding:10px 16px;border-radius:10px;font:500 13px system-ui,sans-serif;max-width:300px;margin-top:8px;opacity:0;transform:translateY(12px);transition:opacity .2s,transform .2s;border:1px solid rgba(0,0,0,.08);background:rgba(255,255,255,.96);color:#0d0d14;box-shadow:0 8px 24px rgba(0,0,0,.12);border-left:3px solid #7c3aed}.t.show{opacity:1;transform:none}.t.success{border-left-color:#10b981}.t.warning{border-left-color:#f59e0b}.t.error{border-left-color:#ef4444}@media(prefers-color-scheme:dark){.t{background:rgba(14,14,18,.96);color:#f8f8ff;border-color:rgba(255,255,255,.1)}}@media(prefers-reduced-motion:reduce){.t{transition:none!important}}';
+    style.textContent = '.t{pointer-events:auto;padding:10px 14px;border-radius:10px;font:500 13px system-ui,sans-serif;max-width:320px;margin-top:8px;opacity:0;transform:translateY(12px);transition:opacity .2s,transform .2s;border:1px solid rgba(0,0,0,.08);background:rgba(255,255,255,.97);color:#1a1a24;box-shadow:0 8px 24px rgba(0,0,0,.14);border-left:3px solid #6d5efc}.t.show{opacity:1;transform:none}.t.success{border-left-color:#0e9f6e}.t.warning{border-left-color:#d97706}.t.error{border-left-color:#dc2626}@media(prefers-color-scheme:dark){.t{background:rgba(18,18,24,.97);color:#f4f4f8;border-color:rgba(255,255,255,.1)}}@media(prefers-reduced-motion:reduce){.t{transition:none!important}}';
     shadow.appendChild(style);
-    document.body.appendChild(host);
+    document.documentElement.appendChild(host);
     return shadow;
   }
 
   function show(message, type, duration) {
     type = type || 'info';
-    duration = duration || 3000;
+    duration = duration || 3200;
     var root = ensure();
     var el = document.createElement('div');
     el.className = 't ' + type;
@@ -44,73 +54,316 @@ var RelayToast = (function () {
 
 var FloatingUI = (function () {
   'use strict';
-  var RELAY_LOGO_SVG = '<svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 7C4 7 7 3 11 3C15 3 17 6 17 6" stroke="white" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M15 4L17 6L14 7" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M18 15C18 15 15 19 11 19C7 19 5 16 5 16" stroke="white" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M7 18L5 16L8 15" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="11" cy="11" r="1.5" fill="white"/></svg>';
 
-  var _fab = null;
-  var _fabHost = null;
-  var _panelHost = null;
-  var _shadow = null;
+  var LOGO_SVG = '<svg viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 7C4 7 7 3 11 3C15 3 17 6 17 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M15 4L17 6L14 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M18 15C18 15 15 19 11 19C7 19 5 16 5 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M7 18L5 16L8 15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="11" cy="11" r="1.5" fill="currentColor"/></svg>';
+  var ICONS = {
+    close: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+    gear: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+    copy: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+    export: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+    archive: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 8v13H3V8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>',
+    scan: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg>',
+  };
+
+  var _fabHost = null, _fab = null;
+  var _panelHost = null, _shadow = null;
   var _isOpen = false;
   var _eventsAttached = false;
   var _fabEventsAttached = false;
   var _currentPlatform = null;
+  var _state = { conversation: null, paused: null, storage: null };
+  var _mode = 'full';
+  var _pendingHandoff = null; // {transferId, manifest, parts, targetPlatformId}
+  var _activeTransfer = null; // on-destination part progression
+  var _lastFocused = null;
+  var _fullCaptureBusy = false;
+  var _quotaError = false;
 
-  const CLOSE_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+  function api() {
+    return (typeof browser !== 'undefined' && browser.runtime) ? browser : chrome;
+  }
+  function send(message) { return api().runtime.sendMessage(message); }
 
-  const COPY_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+  // ============================= CSS ==================================
 
-  const TRASH_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+  function css() {
+    return `
+      :host { all: initial; }
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  const GEAR_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+      #relay-panel {
+        --bg: #ffffff;
+        --bg-2: #f6f7fb;
+        --bg-3: #eef0f6;
+        --surface: #ffffff;
+        --border: rgba(15, 18, 34, 0.10);
+        --border-strong: rgba(15, 18, 34, 0.18);
+        --text: #171a26;
+        --text-2: #4b5265;
+        --text-3: #8a90a5;
+        --accent: #6d5efc;
+        --accent-soft: rgba(109, 94, 252, 0.10);
+        --accent-text: #5847e8;
+        --ok: #0e9f6e;
+        --warn: #b45309;
+        --err: #dc2626;
+        --radius: 12px;
+        --radius-sm: 8px;
+        --shadow: 0 16px 48px rgba(10, 12, 30, 0.18);
+        --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+
+        width: 372px;
+        max-width: calc(100vw - 32px);
+        max-height: min(600px, calc(100vh - 96px));
+        overflow-y: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        font-family: var(--font);
+        color: var(--text);
+        font-size: 13px;
+        line-height: 1.45;
+        -webkit-font-smoothing: antialiased;
+        animation: relay-in .18s ease;
+      }
+      #relay-panel[data-theme="dark"] {
+        --bg: #101218; --bg-2: #16181f; --bg-3: #1d202a;
+        --surface: #14161c; --border: rgba(255,255,255,0.09); --border-strong: rgba(255,255,255,0.2);
+        --text: #f0f1f6; --text-2: #a6abbd; --text-3: #6b7080;
+        --accent: #7c6dff; --accent-soft: rgba(124, 109, 255, 0.14); --accent-text: #a99cff;
+        --ok: #34d399; --warn: #fbbf24; --err: #f87171;
+        --shadow: 0 16px 48px rgba(0,0,0,0.55);
+      }
+      @media (prefers-color-scheme: dark) {
+        #relay-panel:not([data-theme="light"]) {
+          --bg: #101218; --bg-2: #16181f; --bg-3: #1d202a;
+          --surface: #14161c; --border: rgba(255,255,255,0.09); --border-strong: rgba(255,255,255,0.2);
+          --text: #f0f1f6; --text-2: #a6abbd; --text-3: #6b7080;
+          --accent: #7c6dff; --accent-soft: rgba(124, 109, 255, 0.14); --accent-text: #a99cff;
+          --ok: #34d399; --warn: #fbbf24; --err: #f87171;
+          --shadow: 0 16px 48px rgba(0,0,0,0.55);
+        }
+      }
+      @keyframes relay-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+      @media (prefers-reduced-motion: reduce) {
+        #relay-panel, #relay-panel * { animation: none !important; transition: none !important; }
+      }
+
+      #relay-panel::-webkit-scrollbar { width: 6px; }
+      #relay-panel::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 6px; }
+
+      .hd { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 3; }
+      .hd-logo { width: 26px; height: 26px; border-radius: 8px; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; flex: none; }
+      .hd-logo svg { width: 16px; height: 16px; }
+      .hd-name { font-weight: 700; font-size: 14px; letter-spacing: -0.01em; }
+      .hd-sub { font-size: 11px; color: var(--text-3); display: flex; align-items: center; gap: 5px; }
+      .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); flex: none; }
+      .dot.ok { background: var(--ok); }
+      .dot.warn { background: var(--warn); }
+      .dot.err { background: var(--err); }
+      .hd-actions { margin-left: auto; display: flex; gap: 4px; }
+
+      .ibtn { width: 28px; height: 28px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--text-2); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+      .ibtn:hover { background: var(--bg-2); color: var(--text); border-color: var(--border); }
+      .ibtn svg { display: block; }
+
+      .body { padding: 12px 14px 14px; }
+
+      .card { border: 1px solid var(--border); border-radius: 10px; padding: 12px; background: var(--bg-2); margin-bottom: 10px; }
+      .card-title { font-weight: 600; font-size: 12px; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+      .conv-name { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .conv-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; color: var(--text-2); font-size: 12px; }
+      .conv-meta b { color: var(--text); font-weight: 600; }
+      .status-line { display: flex; gap: 6px; margin-top: 8px; font-size: 12px; align-items: flex-start; }
+      .status-line.ok { color: var(--ok); }
+      .status-line.warn { color: var(--warn); }
+      .status-line.err { color: var(--err); }
+
+      /* Author display rules (.row, .card…) must never defeat the hidden
+         attribute — the UA [hidden] rule loses to any author display rule. */
+      [hidden] { display: none !important; }
+      .empty { text-align: center; padding: 18px 8px; border: 1px dashed var(--border-strong); border-radius: 10px; color: var(--text-2); }
+      .empty .t1 { font-weight: 600; margin-bottom: 2px; color: var(--text); }
+      .empty .t2 { font-size: 12px; color: var(--text-3); }
+
+      .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+      .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: 600 12px var(--font); cursor: pointer; }
+      .btn:hover { background: var(--bg-3); border-color: var(--border-strong); }
+      .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+      .btn.primary:hover { filter: brightness(1.06); }
+      .btn.danger:hover { border-color: var(--err); color: var(--err); }
+      .btn[disabled] { opacity: .5; cursor: not-allowed; }
+      .btn svg { flex: none; }
+
+      .divider { display: flex; align-items: center; gap: 10px; margin: 14px 0 10px; color: var(--text-3); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+      .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+      .modes { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 8px; background: var(--bg-2); }
+      .modes button { flex: 1; padding: 7px 4px; border: 0; background: transparent; color: var(--text-2); font: 600 11.5px var(--font); cursor: pointer; border-right: 1px solid var(--border); }
+      .modes button:last-child { border-right: 0; }
+      .modes button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+      .mode-hint { font-size: 11px; color: var(--text-3); margin-bottom: 10px; min-height: 15px; }
+
+      .search { width: 100%; padding: 8px 10px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-2); color: var(--text); font: 500 12.5px var(--font); outline: none; }
+      .search:focus { border-color: var(--accent); }
+
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; max-height: 236px; overflow-y: auto; padding-right: 2px; }
+      .pcard { display: flex; align-items: center; gap: 9px; height: 42px; padding: 0 9px 0 0; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; cursor: pointer; font-family: var(--font); color: var(--text); width: 100%; text-align: left; overflow: hidden; }
+      .pcard:hover, .pcard:focus-visible { border-color: var(--accent); background: var(--accent-soft); }
+      .pcard.current { border-color: var(--accent); }
+      .pcard .picon { width: 19px; height: 19px; margin-left: 8px; flex: none; }
+      .pcard .picon svg { width: 19px; height: 19px; }
+      .pcard .pname { font-size: 12px; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .pcard .mark { font-size: 9px; font-weight: 700; color: var(--accent-text); border: 1px solid var(--accent); border-radius: 4px; padding: 1px 4px; margin-right: 2px; }
+      .pcard[hidden] { display: none; }
+
+      .preview { border: 1px solid var(--accent); border-radius: 10px; padding: 12px; background: var(--bg-2); margin-bottom: 10px; }
+      .preview h4 { font-size: 13px; margin-bottom: 6px; }
+      .preview ul { list-style: none; margin: 6px 0 10px; }
+      .preview li { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; font-size: 12px; color: var(--text-2); border-bottom: 1px solid var(--border); }
+      .preview li:last-child { border-bottom: 0; }
+      .preview li b { color: var(--text); font-weight: 600; text-align: right; }
+      .preview .warnbox { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; background: rgba(217, 119, 6, .12); color: var(--warn); font-size: 12px; }
+      .check { display: flex; gap: 7px; align-items: center; margin: 8px 0 2px; font-size: 12px; color: var(--text-2); }
+      .check input { accent-color: var(--accent); }
+
+      .transfer { border: 1px solid var(--accent); border-radius: 10px; padding: 12px; background: var(--bg-2); margin-bottom: 10px; }
+      .transfer h4 { font-size: 13px; margin-bottom: 4px; }
+      .transfer .sub { font-size: 12px; color: var(--text-2); margin-bottom: 8px; }
+      .parts-dots { display: flex; gap: 5px; margin: 6px 0 10px; flex-wrap: wrap; }
+      .pdot { width: 10px; height: 10px; border-radius: 3px; background: var(--bg-3); border: 1px solid var(--border-strong); }
+      .pdot.inserted { background: var(--accent); border-color: var(--accent); }
+      .pdot.sent { background: var(--ok); border-color: var(--ok); }
+      .pdot.current { outline: 2px solid var(--accent-text); outline-offset: 1px; }
+
+      .secondary { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+      .secondary .btn { font-weight: 500; }
+
+      .foot { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-3); display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+
+      #relay-panel button:focus-visible, #relay-panel input:focus-visible {
+        outline: 2px solid var(--accent); outline-offset: 1px;
+      }
+    `;
+  }
+
+  // ============================ HTML ==================================
+
+  function html() {
+    return `
+      <div id="relay-panel" role="dialog" aria-label="Relay — AI context panel">
+        <div class="hd">
+          <div class="hd-logo">${LOGO_SVG}</div>
+          <div>
+            <div class="hd-name">Relay</div>
+            <div class="hd-sub"><span class="dot" id="relay-status-dot"></span><span id="relay-platform-name">Not connected</span></div>
+          </div>
+          <div class="hd-actions">
+            <button class="ibtn" id="relay-settings-btn" title="Settings" aria-label="Open settings">${ICONS.gear}</button>
+            <button class="ibtn" id="relay-close-btn" title="Close (Esc)" aria-label="Close panel">${ICONS.close}</button>
+          </div>
+        </div>
+        <div class="body">
+          <div id="relay-transfer-slot"></div>
+
+          <div id="relay-health-card" class="card" hidden>
+            <div class="card-title">Context health</div>
+            <div class="conv-name" id="relay-conv-name">—</div>
+            <div class="conv-meta">
+              <span><b id="relay-conv-count">0</b> messages captured</span>
+              <span id="relay-conv-updated"></span>
+            </div>
+            <div class="status-line" id="relay-conv-status"></div>
+            <div class="status-line" id="relay-storage-status"></div>
+            <div class="row">
+              <button class="btn" id="relay-fullcapture-btn">${ICONS.scan} Capture full conversation</button>
+              <button class="btn" id="relay-review-btn">${ICONS.archive} Review transcript</button>
+            </div>
+            <div class="row" id="relay-fullcapture-progress" hidden>
+              <span id="relay-fullcapture-text" style="font-size:12px;color:var(--text-2);flex:1;align-self:center"></span>
+              <button class="btn danger" id="relay-fullcapture-cancel">Cancel</button>
+            </div>
+          </div>
+
+          <div id="relay-empty-state" class="empty" hidden>
+            <div class="t1">No conversation captured yet</div>
+            <div class="t2">Chat here and Relay saves it locally, automatically.</div>
+          </div>
+
+          <div id="relay-paused-state" class="empty" hidden>
+            <div class="t1">Capture is paused</div>
+            <div class="t2" id="relay-paused-scope"></div>
+          </div>
+
+          <div id="relay-switch-section">
+            <div class="divider">Continue on</div>
+            <div class="modes" role="group" aria-label="Context mode">
+              <button type="button" data-mode="full" aria-pressed="true">Full transcript</button>
+              <button type="button" data-mode="multipart" aria-pressed="false">In parts</button>
+              <button type="button" data-mode="continuation" aria-pressed="false">Recent only</button>
+            </div>
+            <div class="mode-hint" id="relay-mode-hint"></div>
+            <input type="search" id="relay-platform-search" class="search" placeholder="Search platforms…" aria-label="Search platforms" autocomplete="off">
+            <div class="grid" id="relay-platform-grid" role="listbox" aria-label="Switch to platform"></div>
+            <div id="relay-preview-slot"></div>
+          </div>
+
+          <div class="secondary">
+            <button class="btn" id="relay-copy-btn">${ICONS.copy} Copy Markdown</button>
+            <button class="btn" id="relay-export-btn">${ICONS.export} Export JSON</button>
+            <button class="btn" id="relay-archive-btn">${ICONS.archive} Archive</button>
+          </div>
+
+          <div class="foot">
+            <span>Local only — nothing leaves your browser</span>
+            <span id="relay-foot-usage"></span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // ============================ FAB ===================================
 
   function fabXY(pos) {
-    if (pos === 'bottom-left') return { bottom: '22px', left: '22px', right: 'auto', top: 'auto' };
-    if (pos === 'top-right') return { top: '22px', right: '22px', bottom: 'auto', left: 'auto' };
-    if (pos === 'top-left') return { top: '22px', left: '22px', bottom: 'auto', right: 'auto' };
-    return { bottom: '22px', right: '22px', left: 'auto', top: 'auto' };
+    if (pos === 'bottom-left') return { bottom: '20px', left: '20px', right: 'auto', top: 'auto' };
+    if (pos === 'top-right') return { top: '20px', right: '20px', bottom: 'auto', left: 'auto' };
+    if (pos === 'top-left') return { top: '20px', left: '20px', bottom: 'auto', right: 'auto' };
+    return { bottom: '20px', right: '20px', left: 'auto', top: 'auto' };
   }
 
   function _createFAB(settings) {
     if (_fabHost && document.getElementById('relay-fab-host')) return;
-    if (!document.getElementById('relay-fab-keyframes')) {
-      var kf = document.createElement('style');
-      kf.id = 'relay-fab-keyframes';
-      kf.textContent = '@keyframes relay-pulse-ring{0%{box-shadow:0 4px 20px rgba(0,0,0,.4),0 0 0 0 rgba(124,58,237,.5)}70%{box-shadow:0 4px 20px rgba(0,0,0,.4),0 0 0 12px rgba(124,58,237,0)}100%{box-shadow:0 4px 20px rgba(0,0,0,.4),0 0 0 0 rgba(124,58,237,0)}}';
-      document.head.appendChild(kf);
-    }
     var pos = (settings && settings.fabPosition) || 'bottom-right';
-    var size = (settings && settings.fabSize === 'large') ? 60 : 52;
-    // Draggable FAB lives in a shadow host so page CSS can't break it.
+    var size = (settings && settings.fabSize === 'large') ? 56 : 48;
     _fabHost = document.createElement('div');
     _fabHost.id = 'relay-fab-host';
     var p = fabXY(pos);
     _fabHost.style.cssText = 'position:fixed;top:' + p.top + ';bottom:' + p.bottom + ';left:' + p.left + ';right:' + p.right + ';z-index:2147483640;';
     var sh = _fabHost.attachShadow({ mode: 'open' });
     var st = document.createElement('style');
-    st.textContent = '#relay-fab{width:' + size + 'px;height:' + size + 'px;border-radius:50%;background:#7c3aed;border:1px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;cursor:grab;box-shadow:0 4px 20px rgba(0,0,0,.4),0 0 0 1px rgba(124,58,237,.3);transition:transform .15s;user-select:none}#relay-fab:hover{transform:scale(1.06)}#relay-fab:active{cursor:grabbing;transform:scale(.94)}#relay-fab:focus-visible{outline:2px solid #fff;outline-offset:2px}';
+    st.textContent = '#relay-fab{width:' + size + 'px;height:' + size + 'px;border-radius:50%;background:#6d5efc;color:#fff;border:none;display:flex;align-items:center;justify-content:center;cursor:grab;box-shadow:0 4px 16px rgba(20,16,60,.35);transition:transform .15s;user-select:none}#relay-fab:hover{transform:scale(1.05)}#relay-fab:active{cursor:grabbing;transform:scale(.95)}#relay-fab:focus-visible{outline:2px solid #fff;outline-offset:2px}#relay-fab svg{width:60%;height:60%}@media(prefers-reduced-motion:reduce){#relay-fab{transition:none!important}}';
     sh.appendChild(st);
-    _fab = document.createElement('div');
+    _fab = document.createElement('button');
     _fab.id = 'relay-fab';
-    _fab.innerHTML = RELAY_LOGO_SVG;
-    _fab.setAttribute('role', 'button');
-    _fab.setAttribute('aria-label', 'Relay — AI Context Bridge (Alt+R)');
-    _fab.setAttribute('tabindex', '0');
+    _fab.innerHTML = LOGO_SVG;
+    _fab.setAttribute('aria-label', 'Relay — AI Context Bridge (Alt+R). Activate to open panel.');
     _fab.setAttribute('title', 'Relay (Alt+R) — drag to move');
-        sh.appendChild(_fab);
-    document.body.appendChild(_fabHost);
+    sh.appendChild(_fab);
+    document.documentElement.appendChild(_fabHost);
     _attachFABEvents();
   }
 
   function _positionPanel(pos) {
     if (!_panelHost) return;
     var p = fabXY(pos);
-    _panelHost.style.top = p.top === 'auto' ? 'auto' : '82px';
-    _panelHost.style.bottom = p.bottom === 'auto' ? 'auto' : '82px';
+    _panelHost.style.top = p.top === 'auto' ? 'auto' : (p.top === '20px' ? '76px' : '76px');
+    _panelHost.style.bottom = p.bottom === 'auto' ? 'auto' : '76px';
     _panelHost.style.left = p.left;
     _panelHost.style.right = p.right;
   }
 
-  // Drag-to-move with snap-to-corner, plus click and keyboard activation.
   function _attachFABEvents() {
     if (!_fab || _fabEventsAttached) return;
     _fabEventsAttached = true;
@@ -122,7 +375,7 @@ var FloatingUI = (function () {
     }
 
     _fab.addEventListener('click', function () {
-      if (moved) { moved = false; return; } // swallow the click that follows a drag
+      if (moved) { moved = false; return; }
       _togglePanel();
     });
     _fab.addEventListener('keydown', function (e) {
@@ -138,8 +391,8 @@ var FloatingUI = (function () {
       var dx = e.clientX - startX, dy = e.clientY - startY;
       if (!moved && Math.sqrt(dx * dx + dy * dy) < 6) return;
       moved = true;
-      _fabHost.style.top = Math.max(4, e.clientY - 26) + 'px';
-      _fabHost.style.left = Math.max(4, e.clientX - 26) + 'px';
+      _fabHost.style.top = Math.max(4, e.clientY - 24) + 'px';
+      _fabHost.style.left = Math.max(4, e.clientX - 24) + 'px';
       _fabHost.style.bottom = 'auto';
       _fabHost.style.right = 'auto';
     });
@@ -156,7 +409,6 @@ var FloatingUI = (function () {
       if (typeof RelayStorage !== 'undefined') {
         try { RelayStorage.saveSettings({ fabPosition: corner }); } catch (_e) {}
       }
-      // moved stays true so the trailing click event is swallowed, then reset there.
     });
     _fab.addEventListener('pointercancel', function () {
       activePointer = null;
@@ -164,964 +416,803 @@ var FloatingUI = (function () {
     });
   }
 
+  // ============================ Panel plumbing ==========================
+
   function _createPanel(fabPosition) {
     _panelHost = document.createElement('relay-widget');
-    _panelHost.style.cssText = 'position:fixed;bottom:82px;right:22px;z-index:2147483641;display:none;';
+    _panelHost.style.cssText = 'position:fixed;bottom:76px;right:20px;z-index:2147483641;display:none;';
     _positionPanel(fabPosition || 'bottom-right');
     _shadow = _panelHost.attachShadow({ mode: 'open' });
-
-    const style = document.createElement('style');
-    style.textContent = _getPanelCSS();
+    var style = document.createElement('style');
+    style.textContent = css();
     _shadow.appendChild(style);
-
-    const panelContent = document.createElement('div');
-    panelContent.id = 'relay-panel-root';
-    panelContent.innerHTML = _getPanelHTML();
-    _shadow.appendChild(panelContent);
-
-    document.body.appendChild(_panelHost);
+    var content = document.createElement('div');
+    content.innerHTML = html();
+    _shadow.appendChild(content);
+    document.documentElement.appendChild(_panelHost);
   }
 
-  function _getPanelCSS() {
-    return `
-      :host { all: initial; }
-      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  function el(id) { return _shadow ? _shadow.getElementById(id) : null; }
 
-      #relay-panel {
-        --relay-bg-primary: #070709;
-        --relay-bg-secondary: #0e0e12;
-        --relay-bg-tertiary: #161620;
-        --relay-surface: rgba(14, 14, 18, 0.97);
-        --relay-accent-from: #6d28d9;
-        --relay-accent-to: #0891b2;
-        --relay-accent-mid: #7c3aed;
-        --relay-accent-soft: rgba(124,58,237,0.12);
-        --relay-success: #10b981;
-        --relay-warning: #f59e0b;
-        --relay-danger: #ef4444;
-        --relay-info: #3b82f6;
-        --relay-text-primary: #f8f8ff;
-        --relay-text-secondary: #94a3b8;
-        --relay-text-muted: #4a5568;
-        --relay-text-accent: #c4b5fd;
-        --relay-border: rgba(255, 255, 255, 0.07);
-        --relay-border-accent: rgba(124, 58, 237, 0.35);
-        --relay-shadow-lg: 0 25px 60px rgba(0,0,0,0.7), 0 0 80px rgba(124,58,237,0.08);
-        --relay-radius-sm: 8px;
-        --relay-radius-md: 12px;
-        --relay-radius-lg: 16px;
-        --relay-ease: cubic-bezier(0.16, 1, 0.3, 1);
-        --relay-ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
-        --relay-t-fast: 150ms;
-        --relay-t-base: 200ms;
-        --relay-t-panel: 320ms;
-        --relay-font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI Variable', system-ui, sans-serif;
+  // ============================ State & rendering ========================
 
-        width: 340px;
-        max-width: calc(100vw - 44px);
-        max-height: 560px;
-        overflow-y: auto;
-        background: var(--relay-surface);
-        -webkit-backdrop-filter: blur(24px) saturate(180%);
-        backdrop-filter: blur(24px) saturate(180%);
-        border: 1px solid var(--relay-border);
-        border-radius: var(--relay-radius-lg);
-        box-shadow: var(--relay-shadow-lg);
-        font-family: var(--relay-font);
-        color: var(--relay-text-primary);
-        padding: 18px;
-        animation: relay-panel-in var(--relay-t-panel) var(--relay-ease) forwards;
-        -webkit-font-smoothing: antialiased;
-      }
-
-      #relay-panel[data-theme="light"] {
-        --relay-bg-primary: #f8f9fc;
-        --relay-bg-secondary: #ffffff;
-        --relay-bg-tertiary: #f1f3f8;
-        --relay-surface: rgba(255, 255, 255, 0.97);
-        --relay-accent-from: #6d28d9;
-        --relay-accent-to: #0891b2;
-        --relay-accent-mid: #7c3aed;
-        --relay-accent-soft: rgba(109,40,217,0.08);
-        --relay-success: #059669;
-        --relay-warning: #d97706;
-        --relay-danger: #dc2626;
-        --relay-info: #2563eb;
-        --relay-text-primary: #0d0d14;
-        --relay-text-secondary: #4a5568;
-        --relay-text-muted: #94a3b8;
-        --relay-text-accent: #6d28d9;
-        --relay-border: rgba(0, 0, 0, 0.08);
-        --relay-border-accent: rgba(109, 40, 217, 0.25);
-        --relay-shadow-lg: 0 25px 60px rgba(0,0,0,0.12), 0 0 80px rgba(109,40,217,0.06);
-      }
-
-      @media (prefers-color-scheme: light) {
-        #relay-panel:not([data-theme="dark"]) {
-          --relay-bg-primary: #f8f9fc;
-          --relay-bg-secondary: #ffffff;
-          --relay-bg-tertiary: #f1f3f8;
-          --relay-surface: rgba(255, 255, 255, 0.97);
-          --relay-accent-soft: rgba(109,40,217,0.08);
-          --relay-success: #059669;
-          --relay-warning: #d97706;
-          --relay-danger: #dc2626;
-          --relay-info: #2563eb;
-          --relay-text-primary: #0d0d14;
-          --relay-text-secondary: #4a5568;
-          --relay-text-muted: #94a3b8;
-          --relay-text-accent: #6d28d9;
-          --relay-border: rgba(0, 0, 0, 0.08);
-          --relay-border-accent: rgba(109, 40, 217, 0.25);
-          --relay-shadow-lg: 0 25px 60px rgba(0,0,0,0.12), 0 0 80px rgba(109,40,217,0.06);
-        }
-      }
-
-      #relay-panel.closing {
-        animation: relay-panel-out var(--relay-t-base) var(--relay-ease-smooth) forwards;
-      }
-
-      #relay-panel::-webkit-scrollbar { width: 3px; }
-      #relay-panel::-webkit-scrollbar-track { background: transparent; }
-      #relay-panel::-webkit-scrollbar-thumb { background: var(--relay-accent-mid); border-radius: 3px; }
-
-      .relay-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 16px;
-        padding-bottom: 14px;
-        border-bottom: 1px solid var(--relay-border);
-      }
-
-      .relay-logo {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 15px;
-        font-weight: 700;
-        letter-spacing: -0.03em;
-        color: var(--relay-text-primary);
-      }
-
-      .relay-logo-icon {
-        width: 26px;
-        height: 26px;
-        background: var(--relay-accent-mid);
-        border-radius: 7px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .relay-logo-icon svg { width: 16px; height: 16px; }
-
-      .relay-header-actions {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      }
-
-      .relay-platform-badge {
-        font-size: 10px;
-        font-weight: 700;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        padding: 3px 8px;
-        border-radius: 6px;
-        background: var(--relay-accent-mid);
-        color: white;
-      }
-
-      .relay-btn-icon {
-        width: 28px;
-        height: 28px;
-        border-radius: var(--relay-radius-sm);
-        border: 1px solid var(--relay-border);
-        background: transparent;
-        color: var(--relay-text-muted);
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all var(--relay-t-fast) ease;
-      }
-
-      .relay-btn-icon:hover {
-        background: var(--relay-bg-tertiary);
-        color: var(--relay-text-primary);
-        border-color: var(--relay-border-accent);
-      }
-
-      .relay-section { margin-bottom: 16px; }
-
-      .relay-empty-state {
-        text-align: center;
-        padding: 32px 20px;
-        border: 1px dashed var(--relay-border);
-        border-radius: var(--relay-radius-md);
-      }
-
-      .relay-empty-icon {
-        width: 36px;
-        height: 36px;
-        margin: 0 auto 12px;
-        background: var(--relay-bg-tertiary);
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .relay-empty-icon svg { width: 18px; height: 18px; opacity: 0.5; }
-
-      .relay-empty-state p {
-        font-size: 13px;
-        line-height: 1.5;
-        color: var(--relay-text-secondary);
-        margin-bottom: 4px;
-      }
-
-      .relay-hint {
-        font-size: 11px;
-        color: var(--relay-text-muted);
-      }
-
-      .relay-context-card {
-        background: var(--relay-bg-secondary);
-        border: 1px solid var(--relay-border);
-        border-radius: var(--relay-radius-md);
-        padding: 14px;
-        position: relative;
-        overflow: hidden;
-      }
-
-      .relay-context-card::before {
-        content: '';
-        position: absolute;
-        top: 0; left: 0; right: 0;
-        height: 2px;
-        background: linear-gradient(90deg, var(--relay-accent-from), var(--relay-accent-to));
-        opacity: 0.7;
-      }
-
-      .relay-context-meta {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        margin-bottom: 10px;
-        flex-wrap: wrap;
-      }
-
-      .relay-meta-dot {
-        color: var(--relay-text-muted);
-        font-size: 10px;
-      }
-
-      .relay-msg-count, .relay-time {
-        font-size: 11px;
-        color: var(--relay-text-secondary);
-      }
-
-      .relay-preview-text {
-        font-size: 12px;
-        color: var(--relay-text-secondary);
-        line-height: 1.5;
-        margin-bottom: 12px;
-        max-height: 54px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        display: -webkit-box;
-        -webkit-line-clamp: 3;
-        -webkit-box-orient: vertical;
-      }
-
-      .relay-context-actions {
-        display: flex;
-        gap: 8px;
-      }
-
-      .relay-btn-ghost {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 7px 12px;
-        border-radius: var(--relay-radius-sm);
-        border: 1px solid var(--relay-border);
-        background: transparent;
-        color: var(--relay-text-secondary);
-        font-size: 11px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all var(--relay-t-fast) ease;
-        font-family: var(--relay-font);
-      }
-
-      .relay-btn-ghost:hover {
-        background: var(--relay-bg-tertiary);
-        color: var(--relay-text-primary);
-        border-color: var(--relay-border-accent);
-      }
-
-      .relay-btn-ghost.relay-danger:hover {
-        border-color: var(--relay-danger);
-        color: var(--relay-danger);
-      }
-
-      .relay-divider {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin: 16px 0;
-      }
-
-      .relay-divider::before, .relay-divider::after {
-        content: '';
-        flex: 1;
-        height: 1px;
-        background: var(--relay-border);
-      }
-
-      .relay-divider span {
-        font-size: 10px;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--relay-text-muted);
-        white-space: nowrap;
-      }
-
-      .relay-platform-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
-        max-height: 260px;
-        overflow-y: auto;
-        padding-right: 2px;
-      }
-
-      .relay-platform-grid::-webkit-scrollbar { width: 2px; }
-      .relay-platform-grid::-webkit-scrollbar-track { background: transparent; }
-      .relay-platform-grid::-webkit-scrollbar-thumb { background: var(--relay-accent-mid); border-radius: 2px; }
-
-      .relay-platform-card {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        height: 44px;
-        padding: 0 12px 0 0;
-        background: var(--relay-bg-secondary);
-        border: 1px solid var(--relay-border);
-        border-radius: var(--relay-radius-md);
-        cursor: pointer;
-        transition: all var(--relay-t-fast) var(--relay-ease);
-        font-family: var(--relay-font);
-        color: var(--relay-text-primary);
-        width: 100%;
-        text-align: left;
-        overflow: hidden;
-        position: relative;
-      }
-
-      .relay-platform-card::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        width: 3px;
-        background: var(--platform-color, var(--relay-accent-mid));
-        opacity: 0.5;
-        transition: opacity var(--relay-t-fast) ease;
-      }
-
-      .relay-platform-card:hover {
-        border-color: var(--relay-border-accent);
-        background: var(--relay-bg-tertiary);
-        transform: translateX(2px);
-      }
-
-      .relay-platform-card:hover::before {
-        opacity: 1;
-      }
-
-      .relay-platform-card.current {
-        border-color: var(--relay-accent-mid);
-        background: var(--relay-accent-soft);
-      }
-
-      .relay-platform-card.current::before {
-        background: var(--relay-accent-mid);
-        opacity: 1;
-      }
-
-      .relay-platform-icon {
-        width: 20px;
-        height: 20px;
-        flex-shrink: 0;
-        margin-left: 10px;
-      }
-
-      .relay-platform-icon svg { width: 20px; height: 20px; }
-
-      .relay-platform-name {
-        font-size: 12px;
-        font-weight: 600;
-        flex: 1;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .relay-switch-arrow {
-        font-size: 13px;
-        color: var(--relay-text-muted);
-        transition: transform var(--relay-t-fast) var(--relay-ease), color var(--relay-t-fast) ease;
-      }
-
-      .relay-platform-card:hover .relay-switch-arrow {
-        transform: translateX(3px);
-        color: var(--relay-text-accent);
-      }
-
-      .relay-footer {
-        margin-top: 16px;
-        padding-top: 14px;
-        border-top: 1px solid var(--relay-border);
-      }
-
-      .relay-storage-bar {
-        height: 3px;
-        background: var(--relay-bg-tertiary);
-        border-radius: 3px;
-        overflow: hidden;
-        margin-bottom: 8px;
-      }
-
-      .relay-storage-fill {
-        height: 100%;
-        background: linear-gradient(90deg, var(--relay-accent-from), var(--relay-accent-to));
-        border-radius: 3px;
-        transition: width var(--relay-t-base) var(--relay-ease-smooth);
-      }
-
-      .relay-footer-text {
-        font-size: 10px;
-        color: var(--relay-text-muted);
-      }
-
-      @keyframes relay-panel-in {
-        from { opacity: 0; transform: translateY(10px) scale(0.97); }
-        to { opacity: 1; transform: translateY(0) scale(1); }
-      }
-
-      @keyframes relay-panel-out {
-        from { opacity: 1; transform: translateY(0) scale(1); }
-        to { opacity: 0; transform: translateY(10px) scale(0.97); }
-      }
-
-      .relay-confirm-overlay {
-        position: absolute;
-        inset: 0;
-        background: rgba(0,0,0,0.5);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: var(--relay-radius-lg);
-        z-index: 10;
-        animation: relay-panel-in 150ms ease forwards;
-      }
-
-      .relay-confirm-box {
-        background: var(--relay-bg-secondary);
-        border: 1px solid var(--relay-border);
-        border-radius: var(--relay-radius-md);
-        padding: 20px;
-        max-width: 280px;
-        text-align: center;
-      }
-
-      .relay-confirm-box p {
-        font-size: 13px;
-        color: var(--relay-text-primary);
-        margin-bottom: 16px;
-        line-height: 1.5;
-      }
-
-      .relay-confirm-actions {
-        display: flex;
-        gap: 8px;
-        justify-content: center;
-      }
-
-      .relay-confirm-yes {
-        padding: 8px 20px;
-        background: var(--relay-accent-mid);
-        color: white;
-        border: none;
-        border-radius: var(--relay-radius-sm);
-        font-size: 12px;
-        font-weight: 600;
-        cursor: pointer;
-        font-family: var(--relay-font);
-        transition: background 150ms ease;
-      }
-
-      .relay-confirm-yes:hover { background: var(--relay-accent-from); }
-
-      .relay-confirm-no {
-        padding: 8px 20px;
-        background: transparent;
-        border: 1px solid var(--relay-border);
-        border-radius: var(--relay-radius-sm);
-        color: var(--relay-text-secondary);
-        font-size: 12px;
-        font-weight: 500;
-        cursor: pointer;
-        font-family: var(--relay-font);
-        transition: all 150ms ease;
-      }
-
-      .relay-confirm-no:hover {
-        background: var(--relay-bg-tertiary);
-        color: var(--relay-text-primary);
-      }
-
-      .relay-platform-search {
-        width: 100%;
-        padding: 8px 10px;
-        margin-bottom: 8px;
-        border: 1px solid var(--relay-border);
-        border-radius: var(--relay-radius-sm);
-        background: var(--relay-bg-tertiary);
-        color: var(--relay-text-primary);
-        font: 500 12px var(--relay-font);
-        outline: none;
-        transition: border-color var(--relay-t-fast) ease;
-      }
-      .relay-platform-search:focus { border-color: var(--relay-border-accent); }
-      .relay-platform-search::placeholder { color: var(--relay-text-muted); }
-
-      #relay-panel button:focus-visible,
-      #relay-panel input:focus-visible,
-      #relay-panel [tabindex="0"]:focus-visible {
-        outline: 2px solid var(--relay-accent-mid);
-        outline-offset: 1px;
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        #relay-panel, #relay-panel *, .relay-confirm-overlay, .relay-confirm-box {
-          animation: none !important;
-          transition: none !important;
-        }
-      }
-    `;
+  function completenessCopy(conv) {
+    var c = (conv && conv.completeness) || {};
+    switch (c.status) {
+      case 'complete': return { cls: 'ok', text: 'Full conversation captured and verified.' };
+      case 'partial': return {
+        cls: 'warn',
+        text: 'Some older messages were not visible on this page. Run “Capture full conversation” to include them.',
+      };
+      case 'live': return {
+        cls: 'warn',
+        text: 'Capturing live. Older messages may exist above the visible area — run “Capture full conversation” to verify.',
+      };
+      default: return { cls: 'warn', text: 'Capture status unverified.' };
+    }
   }
 
-  function _getPanelHTML() {
-    return `
-      <div id="relay-panel" role="dialog" aria-label="Relay context panel">
-        <div class="relay-header">
-          <div class="relay-logo">
-            <div class="relay-logo-icon">
-              ${RELAY_LOGO_SVG.replace('width="22"', 'width="16"').replace('height="22"', 'height="16"')}
-            </div>
-            <span>Relay</span>
-          </div>
-          <div class="relay-header-actions">
-            <span class="relay-platform-badge" id="relay-current-platform">—</span>
-            <button class="relay-btn-icon" id="relay-settings-btn" title="Settings">${GEAR_SVG}</button>
-            <button class="relay-btn-icon" id="relay-close-btn" title="Close">${CLOSE_SVG}</button>
-          </div>
-        </div>
-
-        <div class="relay-section" id="relay-status-section">
-          <div id="relay-empty-state">
-            <div class="relay-empty-icon">
-              ${RELAY_LOGO_SVG.replace('width="22"', 'width="18"').replace('height="22"', 'height="18"')}
-            </div>
-            <p>Chat on any AI site to begin<br>capturing context.</p>
-            <p class="relay-hint">Relay runs silently in the background.</p>
-          </div>
-
-          <div id="relay-active-state" style="display:none">
-            <div class="relay-context-card">
-              <div class="relay-context-meta">
-                <span class="relay-platform-badge" id="relay-session-platform">—</span>
-                <span class="relay-meta-dot">·</span>
-                <span class="relay-msg-count" id="relay-session-count">0 msgs</span>
-                <span class="relay-meta-dot">·</span>
-                <span class="relay-time" id="relay-session-time">—</span>
-              </div>
-              <div class="relay-preview-text" id="relay-preview-text">No preview available.</div>
-              <div class="relay-context-actions">
-                <button class="relay-btn-ghost" id="relay-copy-btn">${COPY_SVG} Copy Context</button>
-                <button class="relay-btn-ghost relay-danger" id="relay-clear-btn">${TRASH_SVG} Clear</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="relay-divider"><span>Continue on</span></div>
-
-        <div class="relay-section">
-          <input type="text" id="relay-platform-search" class="relay-platform-search"
-                 placeholder="Search platforms…" aria-label="Search platforms" autocomplete="off">
-          <div class="relay-platform-grid" id="relay-platform-grid" role="listbox" aria-label="Switch to platform"></div>
-        </div>
-
-        <div class="relay-footer">
-          <div class="relay-storage-bar">
-            <div class="relay-storage-fill" id="relay-storage-fill" style="width:0%"></div>
-          </div>
-          <span class="relay-footer-text" id="relay-footer-text">0 KB · 0 messages stored</span>
-        </div>
-      </div>
-    `;
+  function storageCopy(storage) {
+    if (!storage || storage.level === 'unknown') return { cls: '', text: '' };
+    if (storage.level === 'critical') {
+      return { cls: 'err', text: 'Browser storage is nearly full — saves may fail. Export and free space.' };
+    }
+    if (storage.level === 'warn') {
+      var pct = Math.round((storage.ratio || 0) * 100);
+      return { cls: 'warn', text: 'Storage ' + pct + '% used — consider exporting a backup.' };
+    }
+    return { cls: '', text: '' };
   }
+
+  function timeAgo(ts) {
+    if (!ts) return '';
+    var s = Math.floor((Date.now() - ts) / 1000);
+    if (s < 5) return 'just now';
+    if (s < 60) return s + 's ago';
+    var m = Math.floor(s / 60);
+    if (m < 60) return m + 'm ago';
+    var h = Math.floor(m / 60);
+    if (h < 24) return h + 'h ago';
+    var d = Math.floor(h / 24);
+    return d + 'd ago';
+  }
+
+  async function refreshState() {
+    if (typeof RelayContent === 'undefined' || !RelayContent.platform) return;
+    try {
+      var resp = await send({
+        type: 'GET_CAPTURE_STATE',
+        url: window.location.href,
+        platformId: RelayContent.platform.id,
+      });
+      if (resp && resp.ok) {
+        _state = resp.state;
+        renderHealth();
+      }
+    } catch (_e) { /* panel opens with cached state */ }
+  }
+
+  function renderHealth() {
+    var conv = _state.conversation;
+    var paused = _state.paused || {};
+    var healthCard = el('relay-health-card');
+    var emptyState = el('relay-empty-state');
+    var pausedState = el('relay-paused-state');
+    var switchSection = el('relay-switch-section');
+    if (!healthCard) return;
+
+    _currentPlatform = (typeof RelayContent !== 'undefined' && RelayContent.platform) || null;
+    var nameEl = el('relay-platform-name');
+    if (nameEl) nameEl.textContent = _currentPlatform ? _currentPlatform.name : 'Ready';
+
+    var dot = el('relay-status-dot');
+    if (dot) dot.className = 'dot' + (paused.paused ? ' warn' : (conv ? ' ok' : ''));
+
+    if (paused.paused) {
+      healthCard.hidden = true;
+      emptyState.hidden = true;
+      pausedState.hidden = false;
+      switchSection.hidden = !!conv === false; // still allow switching with archive? keep visible
+      var scopeEl = el('relay-paused-scope');
+      if (scopeEl) scopeEl.textContent = paused.scope === 'global'
+        ? 'Capture is paused everywhere. Re-enable it in settings.'
+        : 'Capture is paused for ' + (_currentPlatform ? _currentPlatform.name : 'this platform') + '.';
+      return;
+    }
+    pausedState.hidden = true;
+
+    if (!conv || !(conv.messageCount > 0)) {
+      healthCard.hidden = true;
+      emptyState.hidden = false;
+      switchSection.hidden = false;
+      return;
+    }
+
+    emptyState.hidden = true;
+    switchSection.hidden = false;
+    healthCard.hidden = false;
+    el('relay-conv-name').textContent = conv.title || 'Untitled conversation';
+    el('relay-conv-name').title = conv.title || '';
+    el('relay-conv-count').textContent = String(conv.messageCount);
+    el('relay-conv-updated').textContent = 'updated ' + timeAgo(conv.updatedAt);
+
+    var cc = completenessCopy(conv);
+    var statusEl = el('relay-conv-status');
+    statusEl.className = 'status-line ' + cc.cls;
+    statusEl.textContent = cc.text;
+
+    var sc = storageCopy(_state.storage);
+    var storageEl = el('relay-storage-status');
+    // A failed save outranks a soft storage warning: it must be visible and red.
+    if (_quotaError) {
+      storageEl.className = 'status-line err';
+      storageEl.textContent = 'Last update could NOT be saved — storage is full. Your earlier messages are safe. Export a backup from the Archive page, free space, and new messages will save automatically.';
+    } else {
+      storageEl.className = 'status-line ' + sc.cls;
+      storageEl.textContent = sc.text;
+    }
+
+    var fc = el('relay-fullcapture-btn');
+    if (fc) fc.hidden = conv.completeness && conv.completeness.status === 'complete';
+
+    var usage = el('relay-foot-usage');
+    if (usage) {
+      var kb = _state.storage && _state.storage.usage
+        ? Math.round(_state.storage.usage / 1024) + ' KB stored'
+        : conv.messageCount + ' messages stored';
+      usage.textContent = kb;
+    }
+    renderGrid();
+  }
+
+  function modeHint() {
+    if (_mode === 'full') return 'Sends the entire captured transcript in one message. If it is too large, Relay will split it into parts automatically.';
+    if (_mode === 'multipart') return 'Splits the full transcript into ordered parts you insert one by one. Nothing is omitted.';
+    return 'Recent messages only, clearly labeled as a partial handoff. Your full archive stays intact.';
+  }
+
+  function renderModes() {
+    if (!_shadow) return;
+    _shadow.querySelectorAll('.modes button').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-mode') === _mode));
+    });
+    var hint = el('relay-mode-hint');
+    if (hint) hint.textContent = modeHint();
+  }
+
+  function renderGrid() {
+    var grid = el('relay-platform-grid');
+    if (!grid) return;
+    grid.textContent = '';
+    var platforms = (typeof RelayPlatforms !== 'undefined') ? RelayPlatforms.getAllPlatforms() : [];
+    platforms.forEach(function (p) {
+      var isCurrent = _currentPlatform && _currentPlatform.id === p.id;
+      var card = document.createElement('button');
+      card.className = 'pcard' + (isCurrent ? ' current' : '');
+      card.setAttribute('data-platform-id', p.id);
+      card.setAttribute('role', 'option');
+      card.setAttribute('aria-selected', 'false');
+      card.setAttribute('title', isCurrent ? 'Currently on ' + p.name : 'Switch to ' + p.name);
+      var icon = document.createElement('span');
+      icon.className = 'picon';
+      icon.innerHTML = p.logoSvg;
+      var name = document.createElement('span');
+      name.className = 'pname';
+      name.textContent = p.name;
+      card.appendChild(icon);
+      card.appendChild(name);
+      if (isCurrent) {
+        var mark = document.createElement('span');
+        mark.className = 'mark';
+        mark.textContent = 'HERE';
+        card.appendChild(mark);
+      }
+      grid.appendChild(card);
+    });
+    filterGrid('');
+  }
+
+  function filterGrid(query) {
+    if (!_shadow) return;
+    var q = String(query || '').toLowerCase();
+    _shadow.querySelectorAll('.pcard').forEach(function (card) {
+      var name = card.querySelector('.pname');
+      card.hidden = q !== '' && (name ? name.textContent : '').toLowerCase().indexOf(q) === -1;
+    });
+  }
+
+  // ============================ Switching flow ==========================
+
+  async function handlePlatformPick(platformId) {
+    var conv = _state.conversation;
+    if (!conv || !(conv.messageCount > 0)) {
+      RelayToast.show('No captured context to transfer yet.', 'warning');
+      return;
+    }
+    var settings = {};
+    try { settings = await RelayStorage.getSettings(); } catch (_e) {}
+    if (settings.confirmBeforeSwitch) {
+      var ok = await showConfirm('Transfer the captured conversation to ' + platformId + '?');
+      if (!ok) return;
+    }
+    try {
+      var resp = await send({
+        type: 'PREPARE_HANDOFF',
+        conversationId: conv.id,
+        targetPlatformId: platformId,
+        mode: _mode,
+      });
+      if (!resp || !resp.ok) {
+        RelayToast.show('Could not build the transfer: ' + ((resp && (resp.error || resp.detail)) || 'unknown error'), 'error', 5000);
+        return;
+      }
+      _pendingHandoff = {
+        transferId: resp.transfer.id,
+        targetPlatformId: platformId,
+        manifest: resp.manifest,
+        parts: resp.transfer.parts,
+        fits: resp.fits,
+      };
+      renderPreview();
+    } catch (e) {
+      RelayToast.show('Transfer preparation failed: ' + String((e && e.message) || e), 'error');
+    }
+  }
+
+  function renderPreview() {
+    var slot = el('relay-preview-slot');
+    var grid = el('relay-platform-grid');
+    if (!slot || !_pendingHandoff) return;
+    var m = _pendingHandoff.manifest;
+    var platformName = (typeof RelayPlatforms !== 'undefined' && RelayPlatforms.getPlatformById(_pendingHandoff.targetPlatformId) || {}).name || 'destination';
+    var box = document.createElement('div');
+    box.className = 'preview';
+
+    var h = document.createElement('h4');
+    h.textContent = 'Transfer preview — to ' + platformName;
+    box.appendChild(h);
+
+    var ul = document.createElement('ul');
+    function li(label, value) {
+      var item = document.createElement('li');
+      var l = document.createElement('span'); l.textContent = label;
+      var v = document.createElement('b'); v.textContent = value;
+      item.appendChild(l); item.appendChild(v);
+      ul.appendChild(item);
+    }
+    li('Messages included', String(m.included.count) + (m.omitted.count ? ' of ' + m.captured.total + ' archived' : ' (all archived)'));
+    li('Parts', String(_pendingHandoff.parts.length));
+    var totalBytes = _pendingHandoff.parts.reduce(function (n, p) { return n + p.bytes; }, 0);
+    li('Size', Math.max(1, Math.round(totalBytes / 1024)) + ' KB · ~' + (m.estimate.tokens / 1000).toFixed(1) + 'K tokens (est.)');
+    if (m.source.lineageSources && m.source.lineageSources.length) {
+      li('Merged history', m.source.lineageSources.map(function (s) { return s.platformName; }).join(', '));
+    }
+    if (m.attachments.length) {
+      var capturedCount = m.attachments.filter(function (a) { return a.status === 'captured'; }).length;
+      li('Attachments', m.attachments.length + ' referenced' + (capturedCount ? ' (' + capturedCount + ' stored locally)' : ' — file contents not included'));
+    }
+    li('Capture status', m.captured.completeness || 'unverified');
+    box.appendChild(ul);
+
+    if (!_pendingHandoff.fits) {
+      var warn = document.createElement('div');
+      warn.className = 'warnbox';
+      warn.textContent = 'The transcript is larger than one message, so it will be delivered as ' + _pendingHandoff.parts.length + ' ordered parts. Insert each part and send it, then load the next.';
+      box.appendChild(warn);
+    }
+    if (m.omitted.count > 0) {
+      var warn2 = document.createElement('div');
+      warn2.className = 'warnbox';
+      warn2.textContent = 'Scoped continuation: ' + m.omitted.count + ' earlier messages are omitted from this transfer (the archive keeps them).';
+      box.appendChild(warn2);
+    }
+
+    var checkLabel = document.createElement('label');
+    checkLabel.className = 'check';
+    var check = document.createElement('input');
+    check.type = 'checkbox';
+    check.id = 'relay-include-brief';
+    var hintSpan = document.createElement('span');
+    hintSpan.textContent = 'Include continuity brief (extractive notes from the transcript)';
+    checkLabel.appendChild(check);
+    checkLabel.appendChild(hintSpan);
+    box.appendChild(checkLabel);
+
+    var row = document.createElement('div');
+    row.className = 'row';
+    var confirmBtn = document.createElement('button');
+    confirmBtn.className = 'btn primary';
+    confirmBtn.textContent = 'Open ' + platformName + ' with this context';
+    var backBtn = document.createElement('button');
+    backBtn.className = 'btn';
+    backBtn.textContent = 'Back';
+    row.appendChild(confirmBtn);
+    row.appendChild(backBtn);
+    box.appendChild(row);
+
+    confirmBtn.addEventListener('click', confirmSwitch);
+    backBtn.addEventListener('click', function () {
+      _pendingHandoff = null;
+      slot.textContent = '';
+      grid.hidden = false;
+    });
+
+    slot.textContent = '';
+    slot.appendChild(box);
+    grid.hidden = true;
+    confirmBtn.focus();
+  }
+
+  async function confirmSwitch() {
+    if (!_pendingHandoff) return;
+    var includeBrief = false;
+    var check = el('relay-include-brief');
+    if (check) includeBrief = check.checked;
+    // Rebuild with the brief when the user asked for it.
+    var transferId = _pendingHandoff.transferId;
+    if (includeBrief) {
+      var conv = _state.conversation;
+      var resp = await send({
+        type: 'PREPARE_HANDOFF',
+        conversationId: conv.id,
+        targetPlatformId: _pendingHandoff.targetPlatformId,
+        mode: _mode,
+        includeBrief: true,
+      });
+      if (resp && resp.ok) {
+        // The first (brief-less) record is replaced by this one.
+        await send({ type: 'ABANDON_TRANSFER', transferId: transferId });
+        transferId = resp.transfer.id;
+      }
+    }
+    var resp2 = await send({ type: 'CONFIRM_SWITCH', transferId: transferId });
+    if (!resp2 || !resp2.ok) {
+      RelayToast.show('Could not open the destination: ' + ((resp2 && resp2.error) || 'unknown'), 'error');
+      return;
+    }
+    RelayToast.show('Opening ' + ((typeof RelayPlatforms !== 'undefined' && RelayPlatforms.getPlatformById(_pendingHandoff.targetPlatformId) || {}).name || 'destination') + ' — Relay will insert the context there.', 'success', 5000);
+    _pendingHandoff = null;
+    setTimeout(_closePanel, 400);
+  }
+
+  // ============================ Part progression ========================
+
+  function renderTransferProgress() {
+    var slot = el('relay-transfer-slot');
+    if (!slot) return;
+    slot.textContent = '';
+    if (!_activeTransfer) return;
+
+    var t = _activeTransfer;
+    var platformName = '';
+    try {
+      var target = (typeof RelayPlatforms !== 'undefined') ? RelayPlatforms.getPlatformById(t.targetPlatformId) : null;
+      platformName = target ? target.name : t.targetPlatformId;
+    } catch (_e) { platformName = t.targetPlatformId; }
+
+    var nextIndex = -1;
+    for (var i = 0; i < t.parts.length; i++) {
+      if (t.parts[i].status === 'pending') { nextIndex = i; break; }
+    }
+    var allSent = t.parts.every(function (p) { return p.status === 'sent'; });
+
+    var box = document.createElement('div');
+    box.className = 'transfer';
+    var h = document.createElement('h4');
+    var sub = document.createElement('div');
+    sub.className = 'sub';
+
+    if (allSent) {
+      h.textContent = 'Transfer complete';
+      sub.textContent = 'All ' + t.parts.length + ' part' + (t.parts.length > 1 ? 's' : '') + ' delivered to ' + platformName + '.';
+      var doneRow = document.createElement('div');
+      doneRow.className = 'row';
+      var dismiss = document.createElement('button');
+      dismiss.className = 'btn';
+      dismiss.textContent = 'Dismiss';
+      dismiss.addEventListener('click', async function () {
+        await send({ type: 'ABANDON_TRANSFER', transferId: t.id });
+        _activeTransfer = null;
+        renderTransferProgress();
+      });
+      doneRow.appendChild(dismiss);
+      box.appendChild(h);
+      box.appendChild(sub);
+      box.appendChild(doneRow);
+      slot.appendChild(box);
+      return;
+    }
+
+    h.textContent = 'Relay transfer — ' + (t.parts.length > 1 ? 'Part ' + (nextIndex + 1) + ' of ' + t.parts.length : 'context ready');
+    if (nextIndex < 0) {
+      sub.textContent = 'All parts are inserted. Send the final part in the chat below.';
+    } else {
+      var insertedBefore = nextIndex;
+      sub.textContent = insertedBefore === 0
+        ? 'The captured conversation is ready to be placed into this chat.'
+        : 'Continue delivering the captured conversation to this chat.';
+    }
+    box.appendChild(h);
+    box.appendChild(sub);
+
+    var dots = document.createElement('div');
+    dots.className = 'parts-dots';
+    dots.setAttribute('role', 'img');
+    dots.setAttribute('aria-label', t.parts.map(function (p) {
+      return 'Part ' + (p.index + 1) + ' ' + p.status;
+    }).join(', '));
+    t.parts.forEach(function (p) {
+      var d = document.createElement('span');
+      d.className = 'pdot ' + p.status + (p.index === nextIndex ? ' current' : '');
+      d.title = 'Part ' + (p.index + 1) + ' — ' + p.status;
+      dots.appendChild(d);
+    });
+    box.appendChild(dots);
+
+    var row = document.createElement('div');
+    row.className = 'row';
+    if (nextIndex >= 0) {
+      var insertBtn = document.createElement('button');
+      insertBtn.className = 'btn primary';
+      insertBtn.textContent = t.parts.length > 1 ? 'Insert part ' + (nextIndex + 1) : 'Insert context';
+      insertBtn.addEventListener('click', function () { insertPart(nextIndex); });
+      row.appendChild(insertBtn);
+    }
+    var sentBtn = document.createElement('button');
+    sentBtn.className = 'btn';
+    sentBtn.textContent = nextIndex >= 0 && nextIndex < t.parts.length - 1
+      ? 'Sent it — load next part'
+      : 'Sent it — finish transfer';
+    sentBtn.addEventListener('click', async function () {
+      // "Sent" refers to the most recent INSERTED part (the one the user
+      // just sent in the chat), which is the one before the next pending
+      // part — or the final part when everything is already inserted.
+      var idx = nextIndex > 0 ? nextIndex - 1 : (nextIndex === -1 ? t.parts.length - 1 : -1);
+      if (idx < 0) {
+        RelayToast.show('Insert the part first, then confirm you sent it.', 'warning');
+        return;
+      }
+      var resp = await send({ type: 'MARK_TRANSFER_PART', transferId: t.id, partIndex: idx, status: 'sent' });
+      if (resp && resp.ok) {
+        _activeTransfer = resp.transfer;
+        renderTransferProgress();
+        RelayToast.show('Marked as sent.', 'success', 2500);
+      }
+    });
+    row.appendChild(sentBtn);
+
+    var cancel = document.createElement('button');
+    cancel.className = 'btn danger';
+    cancel.textContent = 'Cancel transfer';
+    cancel.addEventListener('click', async function () {
+      await send({ type: 'ABANDON_TRANSFER', transferId: t.id });
+      _activeTransfer = null;
+      renderTransferProgress();
+      RelayToast.show('Transfer cancelled. The archive is untouched.', 'info');
+    });
+    row.appendChild(cancel);
+
+    box.appendChild(row);
+    var note = document.createElement('div');
+    note.className = 'sub';
+    note.style.marginTop = '8px';
+    note.textContent = 'Relay inserts text only — it never presses send for you.';
+    box.appendChild(note);
+    slot.appendChild(box);
+  }
+
+  async function insertPart(partIndex) {
+    var t = _activeTransfer;
+    if (!t) return;
+    var resp = await send({ type: 'GET_TRANSFER_PART', transferId: t.id, partIndex: partIndex });
+    if (!resp || !resp.ok) {
+      RelayToast.show('Could not load part ' + (partIndex + 1) + '.', 'error');
+      return;
+    }
+    var result = { injected: false, verified: false };
+    if (typeof InjectorManager !== 'undefined') {
+      result = await InjectorManager.insertPartText(resp.part.text);
+    }
+    if (result.injected) {
+      await send({ type: 'MARK_TRANSFER_PART', transferId: t.id, partIndex: partIndex, status: 'inserted' });
+      var fresh = await send({ type: 'GET_TRANSFER', transferId: t.id });
+      if (fresh && fresh.ok) _activeTransfer = fresh.transfer;
+      renderTransferProgress();
+      if (result.verified) {
+        RelayToast.show('Part ' + (partIndex + 1) + ' inserted — review and send it in the chat.', 'success', 4500);
+      } else {
+        RelayToast.show('Part ' + (partIndex + 1) + ' inserted but could not be verified — check the composer before sending.', 'warning', 6000);
+      }
+    } else {
+      RelayToast.show('Could not find the chat input box. Focus the chat and try again, or copy from the Archive page.', 'error', 6000);
+    }
+  }
+
+  function showConfirm(message) {
+    return new Promise(function (resolve) {
+      if (!_shadow) { resolve(false); return; }
+      var panel = el('relay-panel');
+      if (!panel) { resolve(false); return; }
+      var overlay = document.createElement('div');
+      overlay.style.cssText = 'position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;border-radius:12px;z-index:10;';
+      var boxEl = document.createElement('div');
+      boxEl.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;max-width:280px;text-align:center;';
+      var p = document.createElement('p');
+      p.textContent = message;
+      var actions = document.createElement('div');
+      actions.style.cssText = 'display:flex;gap:8px;justify-content:center;margin-top:12px;';
+      var yes = document.createElement('button');
+      yes.className = 'btn primary';
+      yes.textContent = 'Continue';
+      var no = document.createElement('button');
+      no.className = 'btn';
+      no.textContent = 'Cancel';
+      function done(r) { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); resolve(r); }
+      yes.addEventListener('click', function () { done(true); });
+      no.addEventListener('click', function () { done(false); });
+      overlay.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.stopPropagation(); done(false); } });
+      actions.appendChild(no);
+      actions.appendChild(yes);
+      boxEl.appendChild(p);
+      boxEl.appendChild(actions);
+      overlay.appendChild(boxEl);
+      panel.appendChild(overlay);
+      no.focus();
+    });
+  }
+
+  // ============================ Events ==================================
 
   function _attachPanelEvents() {
     if (_eventsAttached || !_shadow) return;
     _eventsAttached = true;
 
-    const closeBtn = _shadow.getElementById('relay-close-btn');
-    const settingsBtn = _shadow.getElementById('relay-settings-btn');
-    const copyBtn = _shadow.getElementById('relay-copy-btn');
-    const clearBtn = _shadow.getElementById('relay-clear-btn');
-    const grid = _shadow.getElementById('relay-platform-grid');
-
-    if (closeBtn) closeBtn.addEventListener('click', () => _closePanel());
-    if (settingsBtn) settingsBtn.addEventListener('click', () => {
-      const api = (typeof browser !== 'undefined' && browser.runtime) ? browser : chrome;
-      if (api && api.runtime && api.runtime.sendMessage) {
-        api.runtime.sendMessage({ type: 'OPEN_OPTIONS' });
-      }
+    el('relay-close-btn').addEventListener('click', function () { _closePanel(); });
+    el('relay-settings-btn').addEventListener('click', function () {
+      send({ type: 'OPEN_OPTIONS' }).catch(function () {});
     });
 
-    if (copyBtn) copyBtn.addEventListener('click', async () => {
-      const session = await RelayStorage.getSession();
-      if (!session) return;
-      const settings = await RelayStorage.getSettings();
-      const formatted = RelayFormatter.format(session, settings);
+    el('relay-fullcapture-btn').addEventListener('click', async function () {
+      if (_fullCaptureBusy || typeof RelayContent === 'undefined') return;
+      _fullCaptureBusy = true;
+      var progress = el('relay-fullcapture-progress');
+      var text = el('relay-fullcapture-text');
+      progress.hidden = false;
+      text.textContent = 'Scrolling to capture older messages…';
       try {
-        await navigator.clipboard.writeText(formatted);
-        RelayToast.show('Copied to clipboard', 'info');
+        var result = await RelayContent.runFullCapture(function (p) {
+          text.textContent = 'Captured ' + p.captured + ' messages so far…';
+        });
+        text.textContent = result.reachedTop
+          ? 'Full conversation captured (' + result.captured + ' messages).'
+          : 'Captured the visible history (' + result.captured + ' messages). The page did not expose older messages.';
+        if (result.reason === 'cancelled') text.textContent = 'Capture cancelled — everything captured so far is saved.';
+        RelayToast.show(result.reachedTop ? 'Full conversation captured and verified.' : 'Captured what the page could show — older messages may remain unloaded.', result.reachedTop ? 'success' : 'warning', 5000);
       } catch (e) {
-        RelayToast.show('Failed to copy', 'error');
+        text.textContent = 'Capture failed: ' + String((e && e.message) || e);
+      } finally {
+        _fullCaptureBusy = false;
+        setTimeout(function () { progress.hidden = true; }, 4000);
+        refreshState();
+      }
+    });
+    el('relay-fullcapture-cancel').addEventListener('click', function () {
+      if (typeof RelayContent !== 'undefined') RelayContent.cancelFullCapture();
+    });
+
+    el('relay-review-btn').addEventListener('click', function () {
+      openArchiveFor(_state.conversation && _state.conversation.id);
+    });
+    el('relay-archive-btn').addEventListener('click', function () {
+      openArchiveFor(null);
+    });
+
+    el('relay-copy-btn').addEventListener('click', async function () {
+      var conv = _state.conversation;
+      if (!conv) { RelayToast.show('Nothing captured yet.', 'warning'); return; }
+      try {
+        var resp = await send({ type: 'EXPORT_MARKDOWN', conversationId: conv.id });
+        if (!resp || !resp.ok) throw new Error(resp && (resp.error || resp.detail) || 'export failed');
+        await navigator.clipboard.writeText(resp.markdown);
+        RelayToast.show('Markdown transcript copied.', 'success');
+      } catch (e) {
+        RelayToast.show('Copy failed: ' + String((e && e.message) || e), 'error');
       }
     });
 
-    if (clearBtn) clearBtn.addEventListener('click', async () => {
-      await RelayStorage.clearSession();
-      _updatePanelContent();
-      RelayToast.show('Session cleared', 'info');
+    el('relay-export-btn').addEventListener('click', async function () {
+      var conv = _state.conversation;
+      if (!conv) { RelayToast.show('Nothing captured yet.', 'warning'); return; }
+      try {
+        var resp = await send({ type: 'EXPORT_ARCHIVE', conversationId: conv.id });
+        if (!resp || !resp.ok) throw new Error('export failed');
+        downloadText(JSON.stringify(resp.export, null, 2), resp.filename || 'relay-conversation.json', 'application/json');
+        RelayToast.show('Archive exported.', 'success');
+      } catch (e) {
+        RelayToast.show('Export failed: ' + String((e && e.message) || e), 'error');
+      }
     });
 
-    if (grid) {
-      grid.addEventListener('click', async (e) => {
-        const card = e.target.closest('.relay-platform-card');
-        if (!card) return;
-        const platformId = card.getAttribute('data-platform-id');
-        if (!platformId) return;
-
-        const platform = RelayPlatforms.getPlatformById(platformId);
-        if (!platform) return;
-
-        const session = await RelayStorage.getSession();
-        if (!session || session.messages.length === 0) {
-          RelayToast.show('No context captured yet', 'warning');
-          return;
-        }
-
-        const settings = await RelayStorage.getSettings();
-        
-        if (settings && settings.confirmBeforeSwitch) {
-          const confirmed = await _showConfirm('Switch to ' + platform.name + ' and bring your conversation context?');
-          if (!confirmed) return;
-        }
-
-        const formatted = RelayFormatter.format(session, settings);
-
-        await RelayStorage.setPendingInjection({
-          targetPlatformId: platformId,
-          formattedContext: formatted,
-        });
-
-        const api = (typeof browser !== 'undefined' && browser.runtime) ? browser : chrome;
-        if (api && api.runtime && api.runtime.sendMessage) {
-          api.runtime.sendMessage({ type: 'OPEN_PLATFORM', platformId: platform.id }, async (response) => {
-            if (!response || !response.success) {
-              await RelayStorage.clearPendingInjection();
-              if (typeof RelayToast !== 'undefined') RelayToast.show('Failed to open platform: ' + (response?.error || 'Unknown error'), 'error');
-            }
-          });
-        } else {
-          window.open(platform.url, '_blank');
-        }
-
-        RelayToast.show('Switching to ' + platform.name, 'success');
-        setTimeout(() => _closePanel(), 500);
-      });
-    }
-
-    const searchInput = _shadow.getElementById('relay-platform-search');
-    if (searchInput) {
-      searchInput.addEventListener('input', () => _filterPlatformCards(searchInput.value));
-      searchInput.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          const first = _shadow.querySelector('.relay-platform-card:not([hidden])');
-          if (first) first.focus();
-        } else if (e.key === 'Escape') {
-          searchInput.value = '';
-          _filterPlatformCards('');
-        }
-      });
-    }
-
-    // Roving arrow-key navigation across platform cards.
-    grid.addEventListener('keydown', (e) => {
+    var grid = el('relay-platform-grid');
+    grid.addEventListener('click', function (e) {
+      var card = e.target.closest('.pcard');
+      if (!card) return;
+      var id = card.getAttribute('data-platform-id');
+      if (!id) return;
+      if (id === (_currentPlatform && _currentPlatform.id)) {
+        RelayToast.show('You are already on ' + _currentPlatform.name + '.', 'info');
+        return;
+      }
+      handlePlatformPick(id);
+    });
+    grid.addEventListener('keydown', function (e) {
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-      const cards = Array.from(_shadow.querySelectorAll('.relay-platform-card:not([hidden])'));
+      var cards = Array.from(_shadow.querySelectorAll('.pcard:not([hidden])'));
       if (!cards.length) return;
-      const i = cards.indexOf(_shadow.activeElement);
-      const next = e.key === 'ArrowDown' ? cards[i + 1] : cards[i - 1];
+      var i = cards.indexOf(_shadow.activeElement);
+      var next = e.key === 'ArrowDown' ? cards[i + 1] : cards[i - 1];
       if (next) { e.preventDefault(); next.focus(); }
     });
 
-    // Esc closes the panel; Tab is trapped inside while it is open.
-    _shadow.addEventListener('keydown', (e) => {
+    var search = el('relay-platform-search');
+    search.addEventListener('input', function () { filterGrid(search.value); });
+    search.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        var first = _shadow.querySelector('.pcard:not([hidden])');
+        if (first) first.focus();
+      } else if (e.key === 'Escape') {
+        search.value = '';
+        filterGrid('');
+      }
+    });
+
+    _shadow.querySelectorAll('.modes button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        _mode = b.getAttribute('data-mode');
+        renderModes();
+      });
+    });
+
+    _shadow.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') { e.stopPropagation(); _closePanel(); return; }
       if (e.key !== 'Tab' || !_isOpen) return;
-      const focusables = Array.from(_shadow.querySelectorAll(
-        'button:not([disabled]), input, [tabindex="0"]'
-      )).filter((el) => el.offsetParent !== null || el.tagName === 'INPUT');
+      var focusables = Array.from(_shadow.querySelectorAll('button:not([disabled]):not([hidden]), input:not([hidden])'))
+        .filter(function (n) { return n.offsetParent !== null || n.tagName === 'INPUT'; });
       if (!focusables.length) return;
-      const first = focusables[0], last = focusables[focusables.length - 1];
+      var first = focusables[0], last = focusables[focusables.length - 1];
       if (e.shiftKey && _shadow.activeElement === first) { e.preventDefault(); last.focus(); }
       else if (!e.shiftKey && _shadow.activeElement === last) { e.preventDefault(); first.focus(); }
     });
 
-    document.addEventListener('click', (e) => {
+    document.addEventListener('pointerdown', function (e) {
       if (_isOpen && _panelHost) {
-        const path = e.composedPath();
-        if (!path.includes(_panelHost) && (!_fab || !path.includes(_fab))) {
-          _closePanel();
-        }
+        var path = e.composedPath ? e.composedPath() : [];
+        if (!path.includes(_panelHost) && (!_fab || !path.includes(_fab))) _closePanel();
       }
-    });
+    }, true);
   }
 
-  async function _updatePanelContent() {
+  function openArchiveFor(conversationId) {
+    var url = api().runtime.getURL('archive/archive.html' + (conversationId ? '#' + encodeURIComponent(conversationId) : ''));
+    window.open(url, '_blank');
+  }
+
+  function downloadText(text, filename, mime) {
+    var blob = new Blob([text], { type: mime || 'text/plain' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.documentElement.appendChild(a);
+    a.click();
+    setTimeout(function () { a.remove(); URL.revokeObjectURL(url); }, 1000);
+  }
+
+  // ============================ Open/close ===============================
+
+  async function _applyTheme() {
     if (!_shadow) return;
-
-    const session = await RelayStorage.getSession();
-    const platform = typeof RelayPlatforms !== 'undefined'
-      ? RelayPlatforms.detectPlatform(window.location.hostname)
-      : null;
-
-    _currentPlatform = platform;
-
-    const currentBadge = _shadow.getElementById('relay-current-platform');
-    if (currentBadge) {
-      currentBadge.textContent = platform ? platform.name : 'Ready';
-    }
-
-    const emptyState = _shadow.getElementById('relay-empty-state');
-    const activeState = _shadow.getElementById('relay-active-state');
-
-    if (session && session.messages && session.messages.length > 0) {
-      if (emptyState) emptyState.style.display = 'none';
-      if (activeState) activeState.style.display = 'block';
-
-      const sessionPlatform = _shadow.getElementById('relay-session-platform');
-      const sessionCount = _shadow.getElementById('relay-session-count');
-      const sessionTime = _shadow.getElementById('relay-session-time');
-      const previewText = _shadow.getElementById('relay-preview-text');
-
-      if (sessionPlatform) sessionPlatform.textContent = session.platformName || session.platformId;
-      if (sessionCount) sessionCount.textContent = session.messageCount + ' msgs';
-      if (sessionTime) sessionTime.textContent = RelayFormatter.timeAgo(session.updatedAt);
-      if (previewText) previewText.textContent = RelayFormatter.formatSummary(session);
-    } else {
-      if (emptyState) emptyState.style.display = 'block';
-      if (activeState) activeState.style.display = 'none';
-    }
-
-    const grid = _shadow.getElementById('relay-platform-grid');
-    if (grid) {
-      grid.textContent = '';
-      const platforms = RelayPlatforms.getAllPlatforms();
-      platforms.forEach((p) => {
-        const card = document.createElement('button');
-        card.className = 'relay-platform-card';
-        if (platform && platform.id === p.id) card.classList.add('current');
-        card.setAttribute('data-platform-id', p.id);
-        card.style.setProperty('--platform-color', p.color);
-
-        const icon = document.createElement('span');
-        icon.className = 'relay-platform-icon';
-        icon.innerHTML = p.logoSvg;
-
-        const name = document.createElement('span');
-        name.className = 'relay-platform-name';
-        name.textContent = p.name;
-
-        const arrow = document.createElement('span');
-        arrow.className = 'relay-switch-arrow';
-        arrow.textContent = '→';
-
-        card.appendChild(icon);
-        card.appendChild(name);
-        card.appendChild(arrow);
-        grid.appendChild(card);
-      });
-      const searchInput = _shadow.getElementById('relay-platform-search');
-      _filterPlatformCards(searchInput ? searchInput.value : '');
-    }
-
-    const usage = await RelayStorage.getStorageUsage();
-    const fill = _shadow.getElementById('relay-storage-fill');
-    const footerText = _shadow.getElementById('relay-footer-text');
-    const pct = Math.min((usage.kb / 7000) * 100, 100);
-    if (fill) fill.style.width = pct + '%';
-    if (footerText) footerText.textContent = usage.kb + ' KB · ' + (session ? session.messageCount : 0) + ' messages stored';
-  }
-
-  function _filterPlatformCards(query) {
-    if (!_shadow) return;
-    var q = String(query || '').toLowerCase();
-    _shadow.querySelectorAll('.relay-platform-card').forEach(function (card) {
-      var nameEl = card.querySelector('.relay-platform-name');
-      var name = nameEl ? nameEl.textContent : '';
-      card.hidden = q !== '' && name.toLowerCase().indexOf(q) === -1;
-    });
-  }
-
-  function _showConfirm(message) {
-    return new Promise((resolve) => {
-      if (!_shadow) { resolve(false); return; }
-      const panel = _shadow.getElementById('relay-panel');
-      if (!panel) { resolve(false); return; }
-
-      const overlay = document.createElement('div');
-      overlay.className = 'relay-confirm-overlay';
-
-      const box = document.createElement('div');
-      box.className = 'relay-confirm-box';
-
-      const msg = document.createElement('p');
-      msg.textContent = message;
-
-      const actions = document.createElement('div');
-      actions.className = 'relay-confirm-actions';
-
-      const yesBtn = document.createElement('button');
-      yesBtn.className = 'relay-confirm-yes';
-      yesBtn.textContent = 'Switch';
-
-      const noBtn = document.createElement('button');
-      noBtn.className = 'relay-confirm-no';
-      noBtn.textContent = 'Cancel';
-
-      function cleanup(result) {
-        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-        resolve(result);
-      }
-
-      yesBtn.addEventListener('click', () => cleanup(true));
-      noBtn.addEventListener('click', () => cleanup(false));
-      overlay.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') { e.stopPropagation(); cleanup(false); }
-      });
-
-      actions.appendChild(noBtn);
-      actions.appendChild(yesBtn);
-      box.appendChild(msg);
-      box.appendChild(actions);
-      overlay.appendChild(box);
-      panel.appendChild(overlay);
-
-      noBtn.focus();
-    });
-  }
-
-  function _togglePanel() {
-    if (_isOpen) {
-      _closePanel();
-    } else {
-      _openPanel();
-    }
+    var settings = {};
+    try { settings = await RelayStorage.getSettings(); } catch (_e) {}
+    var panel = el('relay-panel');
+    if (!panel) return;
+    if (settings.theme === 'dark') panel.setAttribute('data-theme', 'dark');
+    else if (settings.theme === 'light') panel.setAttribute('data-theme', 'light');
+    else panel.removeAttribute('data-theme');
   }
 
   async function _openPanel() {
     if (!_panelHost || !_shadow) return;
+    _lastFocused = document.activeElement;
     _panelHost.style.display = 'block';
     _isOpen = true;
     await _applyTheme();
-    await _updatePanelContent();
-    const searchInput = _shadow.getElementById('relay-platform-search');
-    if (searchInput) searchInput.focus();
+    renderModes();
+    renderHealth();
+    await refreshState();
+    // Destination side: is there a transfer waiting for this platform?
+    try {
+      if (typeof RelayContent !== 'undefined' && RelayContent.platform) {
+        var resp = await send({ type: 'GET_ACTIVE_TRANSFER', platformId: RelayContent.platform.id });
+        _activeTransfer = resp && resp.ok ? resp.transfer : null;
+      }
+    } catch (_e) { _activeTransfer = null; }
+    renderTransferProgress();
+    var search = el('relay-platform-search');
+    if (search) search.focus();
   }
 
   function _closePanel() {
-    if (!_panelHost || !_shadow) return;
-    const panel = _shadow.getElementById('relay-panel');
-    if (panel) {
-      panel.classList.add('closing');
-      setTimeout(() => {
-        _panelHost.style.display = 'none';
-        panel.classList.remove('closing');
-        _isOpen = false;
-      }, 200);
-    } else {
-      _panelHost.style.display = 'none';
-      _isOpen = false;
+    if (!_panelHost) return;
+    _panelHost.style.display = 'none';
+    _isOpen = false;
+    // Always clear in-progress previews: a stale preview must never be
+    // confirmable after the panel has been closed and reopened.
+    _pendingHandoff = null;
+    var slot = el('relay-preview-slot');
+    var grid = el('relay-platform-grid');
+    if (slot) slot.textContent = '';
+    if (grid) grid.hidden = false;
+    if (_lastFocused && typeof _lastFocused.focus === 'function') {
+      try { _lastFocused.focus({ preventScroll: true }); } catch (_e) {}
     }
   }
 
-  function setFABPulse(active) {
-    if (!_fab) return;
-    if (active) {
-      _fab.style.animation = 'relay-pulse-ring 2s infinite';
-    } else {
-      _fab.style.animation = 'none';
+  function _togglePanel() {
+    if (_isOpen) _closePanel();
+    else _openPanel();
+  }
+
+  // ============================ Public hooks =============================
+
+  function onCaptureResult(result) {
+    // Live update while the panel is open. A successful save clears any
+    // previous quota-failure warning.
+    if (result && result.conversation) {
+      _quotaError = false;
+      _state.conversation = result.conversation;
+      _state.storage = result.storage || _state.storage;
+      if (_isOpen) renderHealth();
     }
   }
 
-  async function _applyTheme() {
-    if (!_shadow) return;
-    const settings = await RelayStorage.getSettings();
-    const theme = settings.theme || 'system';
+  function onCaptureQuotaFailure() {
+    _quotaError = true;
+    if (_isOpen) renderHealth();
+  }
 
-    const panel = _shadow.getElementById('relay-panel');
-    if (!panel) return;
-
-    if (theme === 'dark') {
-      panel.setAttribute('data-theme', 'dark');
-    } else if (theme === 'light') {
-      panel.setAttribute('data-theme', 'light');
-    } else {
-      panel.removeAttribute('data-theme');
+  async function onTransferPickup(pickup) {
+    if (!pickup || !pickup.pickedUp) return;
+    _activeTransfer = pickup.transfer || null;
+    if (_isOpen) renderTransferProgress();
+    if (pickup.reason === 'inserted' && pickup.verified) {
+      RelayToast.show('Relay inserted the context into the composer — review it, then press send yourself.', 'success', 6000);
+    } else if (pickup.reason === 'inserted-unverified') {
+      RelayToast.show('Relay inserted the context but could not verify it — check the composer before sending.', 'warning', 7000);
+    } else if (pickup.reason === 'auto-insert-disabled') {
+      RelayToast.show('A transfer is waiting — open the Relay panel to insert it.', 'info', 5000);
     }
   }
 
   async function init() {
-    const settings = await RelayStorage.getSettings();
+    var settings = await RelayStorage.getSettings();
     if (!settings.showFAB) return;
-
     _createFAB(settings);
     _createPanel(settings && settings.fabPosition);
     _attachPanelEvents();
     await _applyTheme();
-
-    const session = await RelayStorage.getSession();
-    if (session && session.messages && session.messages.length > 0) {
-      setFABPulse(true);
-    }
   }
 
-  return { init, setFABPulse, openPanel: _openPanel, closePanel: _closePanel, togglePanel: _togglePanel };
+  return {
+    init: init,
+    openPanel: _openPanel,
+    closePanel: _closePanel,
+    togglePanel: _togglePanel,
+    onCaptureResult: onCaptureResult,
+    onCaptureQuotaFailure: onCaptureQuotaFailure,
+    onTransferPickup: onTransferPickup,
+  };
 })();
 
 if (typeof window !== 'undefined') {

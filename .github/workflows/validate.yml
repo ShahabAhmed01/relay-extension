@@ -13,11 +13,28 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      # Lint and unit tests are dependency-free (stdlib only) — no npm install needed.
-      - name: Lint (syntax, manifest, privacy, parity audits)
+      # Unit tests need fake-indexeddb (archive layer) — dev-only dependency.
+      - name: Install dev dependencies
+        run: npm ci
+      - name: Lint (syntax, manifest, privacy, innerHTML, parity audits)
         run: node scripts/lint.js
       - name: Unit tests
         run: node --test "tests/unit/*.test.js"
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: lint-and-unit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dev dependencies
+        run: npm ci
+      - name: Package Chrome build
+        run: node build-package.js --target=chrome
+      - name: E2E (capture integrity, switching, archive, virtualized capture, multi-part)
+        run: node tests/e2e/test.js
 
   package:
     runs-on: ubuntu-latest
@@ -31,6 +48,8 @@ jobs:
         run: node build-package.js --target=chrome
       - name: Package Firefox build
         run: node build-package.js --target=firefox
+      - name: Package source archive
+        run: node build-package.js --target=source
       - uses: actions/upload-artifact@v4
         with:
           name: relay-packages

@@ -1,44 +1,39 @@
-// SELECTOR_VERSION: 2026-Q3
-// Relay v1.1.0 — ChatGPT scraper & injector (Base factory, no duplication).
+// SELECTOR_VERSION: 2026-Q4
+// Relay v2 — ChatGPT adapter. Element-identity collection (identical
+// repeated messages are preserved as separate turns), structured text
+// extraction, attachment discovery, verified injection.
 
 (function () {
   'use strict';
 
+  var MSG_SELECTOR = '[data-message-author-role]';
+  var FALLBACK_SELECTOR = 'article[data-testid*="conversation-turn"]';
+
   function scrape() {
     var D = (typeof RelayDOM !== 'undefined') ? RelayDOM : null;
-    var get = D ? D.textOf : function (el) { return (el.textContent || '').trim(); };
-    var nodes = document.querySelectorAll('[data-message-author-role]');
-    var out = [];
-    var seen = new Set();
-    nodes.forEach(function (turn) {
-      var role = turn.getAttribute('data-message-author-role');
-      if (role !== 'user' && role !== 'assistant' && role !== 'system') return;
-      if (role === 'system') return;
-      var contentEl = turn.querySelector('.whitespace-pre-wrap') ||
-        turn.querySelector('.markdown') ||
-        turn.querySelector('[class*="markdown"]') || turn;
-      var text = get(contentEl);
-      // Skip empty + UI chrome (e.g. "Copy code" buttons leak into textContent).
-      if (!text || seen.has(role + '|' + text)) return;
-      seen.add(role + '|' + text);
-      out.push({ role: role, content: text, index: out.length });
+    if (!D) return [];
+    var out = D.collectMessages(MSG_SELECTOR, function (el) {
+      var role = el.getAttribute('data-message-author-role');
+      return role === 'user' || role === 'assistant' ? role : null;
+    }, {
+      contentIn: function (el) {
+        return el.querySelector('.whitespace-pre-wrap, .markdown, [class*="markdown"]') || el;
+      },
     });
     if (!out.length) {
-      var articles = document.querySelectorAll('article[data-testid*="conversation-turn"]');
-      articles.forEach(function (turn) {
-        var isUser = turn.querySelector('[data-message-author-role="user"]') !== null;
-        var el = turn.querySelector('.whitespace-pre-wrap') || turn.querySelector('.markdown') || turn;
-        var text = get(el);
-        if (!text || seen.has(text)) return;
-        seen.add(text);
-        out.push({ role: isUser ? 'user' : 'assistant', content: text, index: out.length });
+      out = D.collectMessages(FALLBACK_SELECTOR, function (el) {
+        return el.querySelector('[data-message-author-role="user"]') ? 'user' : 'assistant';
+      }, {
+        contentIn: function (el) {
+          return el.querySelector('.whitespace-pre-wrap, .markdown') || el;
+        },
       });
     }
     return out;
   }
 
   function has() {
-    return document.querySelectorAll('[data-message-author-role]').length > 0;
+    return document.querySelectorAll(MSG_SELECTOR + ', ' + FALLBACK_SELECTOR).length > 0;
   }
 
   function container() { return document.querySelector('main') || document.body; }
@@ -51,4 +46,3 @@
     }, 'ChatGPTInjector');
   }
 })();
-

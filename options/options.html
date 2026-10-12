@@ -4,216 +4,253 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Relay — Settings</title>
+  <link rel="stylesheet" href="../ui/tokens.css">
   <link rel="stylesheet" href="options.css">
 </head>
 <body>
-  <div class="options-container">
-    <header class="options-header">
-      <div class="header-content">
-        <svg width="28" height="28" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M4 7C4 7 7 3 11 3C15 3 17 6 17 6" stroke="white" stroke-width="1.8" stroke-linecap="round" fill="none"/>
-          <path d="M15 4L17 6L14 7" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-          <path d="M18 15C18 15 15 19 11 19C7 19 5 16 5 16" stroke="white" stroke-width="1.8" stroke-linecap="round" fill="none"/>
-          <path d="M7 18L5 16L8 15" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-          <circle cx="11" cy="11" r="1.5" fill="white"/>
-        </svg>
+  <div class="page">
+    <header class="page-head">
+      <div class="brand">
+        <span class="brand-logo" aria-hidden="true"><svg viewBox="0 0 22 22" width="20" height="20" fill="none"><path d="M4 7C4 7 7 3 11 3C15 3 17 6 17 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M15 4L17 6L14 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M18 15C18 15 15 19 11 19C7 19 5 16 5 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M7 18L5 16L8 15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="11" cy="11" r="1.5" fill="currentColor"/></svg></span>
         <h1>Relay Settings</h1>
       </div>
+      <a class="btn small" href="../archive/archive.html">Open archive</a>
     </header>
 
-    <main class="options-main">
-      <nav class="options-nav">
-        <button class="nav-item active" data-section="capture">Capture</button>
+    <div class="layout">
+      <nav class="nav" aria-label="Settings sections">
+        <button class="nav-item active" data-section="general">General</button>
+        <button class="nav-item" data-section="handoff">Context & handoff</button>
+        <button class="nav-item" data-section="archive">Archive & storage</button>
+        <button class="nav-item" data-section="privacy">Privacy</button>
         <button class="nav-item" data-section="appearance">Appearance</button>
-        <button class="nav-item" data-section="privacy">Privacy & Data</button>
+        <button class="nav-item" data-section="advanced">Advanced</button>
       </nav>
 
-      <section id="section-capture" class="options-section active">
-        <h2>Capture Settings</h2>
+      <main class="content">
+        <!-- GENERAL -->
+        <section id="section-general" class="options-section active" aria-label="General">
+          <h2>General</h2>
 
-        <div class="setting-row">
-          <div class="setting-info">
-            <label class="setting-label">Auto-capture conversations</label>
-            <span class="setting-desc">Automatically capture messages on all supported AI sites</span>
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label" for="setting-autocapture">Capture conversations automatically</label>
+              <span class="setting-desc">Relay saves what you exchange on supported AI sites into a complete local archive. The archive is never trimmed to fit a transfer budget.</span>
+            </div>
+            <label class="toggle"><input type="checkbox" id="setting-autocapture" checked><span class="slider"></span></label>
           </div>
-          <label class="toggle">
-            <input type="checkbox" id="setting-autocapture" checked>
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
 
-        <div class="setting-row">
-          <div class="setting-info">
-            <label class="setting-label">Max messages to capture</label>
-            <span class="setting-desc">Maximum number of messages to store per session</span>
+          <div class="setting-row column">
+            <div class="setting-info">
+              <span class="setting-label">Per-platform capture</span>
+              <span class="setting-desc">Pause capture on specific platforms. Other sites keep capturing.</span>
+            </div>
+            <div id="pause-list" class="pause-grid"></div>
           </div>
-          <div class="slider-group">
-            <input type="range" id="setting-maxmessages" min="5" max="200" value="30" step="5">
-            <span class="slider-value" id="maxmessages-value">30</span>
+        </section>
+
+        <!-- HANDOFF -->
+        <section id="section-handoff" class="options-section" aria-label="Context and handoff">
+          <h2>Context & handoff</h2>
+
+          <div class="setting-row column">
+            <div class="setting-info">
+              <span class="setting-label">Default transfer mode</span>
+              <span class="setting-desc">How Relay prepares context when you switch platforms. Your choice here is a default — the panel lets you pick per transfer.</span>
+            </div>
+            <div class="mode-cards" role="radiogroup" aria-label="Default transfer mode">
+              <label class="mode-card">
+                <input type="radio" name="handoffmode" value="full" checked>
+                <b>Full transcript</b>
+                <span>Sends every captured message in one go. If it exceeds the part size, Relay splits it into ordered parts automatically — nothing is dropped.</span>
+              </label>
+              <label class="mode-card">
+                <input type="radio" name="handoffmode" value="multipart">
+                <b>In parts</b>
+                <span>Always splits the full transcript into labeled parts you insert and send one by one.</span>
+              </label>
+              <label class="mode-card">
+                <input type="radio" name="handoffmode" value="continuation">
+                <b>Recent only</b>
+                <span>Sends only the most recent messages, clearly labeled as a partial handoff. The archive itself stays complete.</span>
+              </label>
+            </div>
           </div>
-        </div>
 
-        <div class="setting-row">
-          <div class="setting-info">
-            <label class="setting-label">Include full history</label>
-            <span class="setting-desc">Include all messages instead of just the last N</span>
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label" for="setting-partbudget">Part size for multi-part transfers</label>
+              <span class="setting-desc">Maximum characters per part. Smaller parts are safer for strict input limits; larger parts mean fewer sends. This only affects transfers — the archive always keeps everything.</span>
+              <span class="setting-desc" id="partbudget-label"></span>
+            </div>
+            <div class="slider-group">
+              <input type="range" id="setting-partbudget" min="4000" max="60000" step="1000" aria-describedby="partbudget-label">
+            </div>
           </div>
-          <label class="toggle">
-            <input type="checkbox" id="setting-fullhistory">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
 
-        <div class="setting-row">
-          <div class="setting-info">
-            <label class="setting-label">Confirm before switching</label>
-            <span class="setting-desc">Show confirmation dialog before switching platforms</span>
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label" for="setting-continuationcount">“Recent only” window</label>
+              <span class="setting-desc">How many of the newest messages the “Recent only” mode includes. It never affects the archive.</span>
+              <span class="setting-desc" id="continuationcount-label"></span>
+            </div>
+            <div class="slider-group">
+              <input type="range" id="setting-continuationcount" min="5" max="200" step="5" aria-describedby="continuationcount-label">
+            </div>
           </div>
-          <label class="toggle">
-            <input type="checkbox" id="setting-confirm">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
 
-        <div class="setting-row">
-          <div class="setting-info">
-            <label class="setting-label">Auto-inject context</label>
-            <span class="setting-desc">Automatically paste captured context into the new platform's chat box when it opens</span>
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label" for="setting-autoinsert">Insert context into the destination chat box</label>
+              <span class="setting-desc">When a transfer opens the destination platform, Relay places the text into the composer for you to review. Relay never presses send — sending is always your action.</span>
+            </div>
+            <label class="toggle"><input type="checkbox" id="setting-autoinsert" checked><span class="slider"></span></label>
           </div>
-          <label class="toggle">
-            <input type="checkbox" id="setting-autoinject" checked>
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
 
-        <div class="setting-row">
-          <div class="setting-info">
-            <label class="setting-label">Copy as Markdown</label>
-            <span class="setting-desc">The Copy button exports a structured Markdown transcript instead of a plain one</span>
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label" for="setting-confirm">Confirm before switching</label>
+              <span class="setting-desc">Ask before opening the destination platform with the prepared context.</span>
+            </div>
+            <label class="toggle"><input type="checkbox" id="setting-confirm"><span class="slider"></span></label>
           </div>
-          <label class="toggle">
-            <input type="checkbox" id="setting-copymarkdown" checked>
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
 
-        <div class="setting-row">
-          <div class="setting-info">
-            <label class="setting-label">Context size budget</label>
-            <span class="setting-desc">Trim the oldest messages so the transfer fits this character budget</span>
-            <span class="setting-desc" id="maxchars-estimate"></span>
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label" for="setting-brief">Include continuity brief</label>
+              <span class="setting-desc">Add extractive notes (opening request, stated decisions, latest user message, quoted from the transcript) ahead of the history. Notes never replace the transcript.</span>
+            </div>
+            <label class="toggle"><input type="checkbox" id="setting-brief"><span class="slider"></span></label>
           </div>
-          <div class="slider-group">
-            <input type="range" id="setting-maxchars" min="20000" max="500000" value="120000" step="10000">
-            <span class="slider-value" id="maxchars-value">120K</span>
+        </section>
+
+        <!-- ARCHIVE -->
+        <section id="section-archive" class="options-section" aria-label="Archive and storage">
+          <h2>Archive & storage</h2>
+
+          <div class="notice">
+            <p><b>The archive is separate from transfers.</b> Every captured message is kept locally until you delete it. Transfer settings never delete or trim archived history — large conversations are split into parts instead.</p>
           </div>
-        </div>
-      </section>
 
-      <section id="section-appearance" class="options-section">
-        <h2>Appearance</h2>
-
-        <div class="setting-row">
-          <div class="setting-info">
-            <label class="setting-label">Theme</label>
-            <span class="setting-desc">Choose your preferred color scheme</span>
+          <div class="storage-info">
+            <div class="storage-header">
+              <span>Archive storage</span>
+              <span id="storage-usage" class="muted">…</span>
+            </div>
+            <div class="storage-bar"><div class="storage-fill" id="storage-fill"></div></div>
+            <span class="muted-2" id="storage-detail"></span>
           </div>
-          <select id="setting-theme" class="select-input">
-            <option value="system">System Auto</option>
-            <option value="dark">Dark</option>
-            <option value="light">Light</option>
-          </select>
-        </div>
 
-        <div class="setting-row">
-          <div class="setting-info">
-            <label class="setting-label">FAB position</label>
-            <span class="setting-desc">Where to show the floating action button</span>
+          <div class="data-actions">
+            <button class="btn" id="btn-export-all">Export all archives (JSON)</button>
+            <button class="btn" id="btn-import">Import archive…</button>
+            <input type="file" id="import-file" accept="application/json" hidden>
+            <button class="btn danger" id="btn-delete-all">Delete all archives…</button>
           </div>
-          <select id="setting-fabposition" class="select-input">
-            <option value="bottom-right">Bottom-Right</option>
-            <option value="bottom-left">Bottom-Left</option>
-            <option value="top-right">Top-Right</option>
-            <option value="top-left">Top-Left</option>
-          </select>
-        </div>
+          <p class="muted-2">Deleting archives removes captured conversations, messages and attachment records. It never touches the live conversations on the platforms, and your settings are kept.</p>
+        </section>
 
-        <div class="setting-row">
-          <div class="setting-info">
-            <label class="setting-label">FAB size</label>
-            <span class="setting-desc">Size of the floating action button</span>
+        <!-- PRIVACY -->
+        <section id="section-privacy" class="options-section" aria-label="Privacy">
+          <h2>Privacy</h2>
+
+          <div class="notice ok">
+            <p><b>Local-first by design.</b> The archive lives in this browser's IndexedDB. Relay makes no network requests, has no servers, no analytics and no account. The privacy audit in <code>scripts/lint.js</code> enforces this in CI.</p>
           </div>
-          <select id="setting-fabsize" class="select-input">
-            <option value="normal">Normal</option>
-            <option value="large">Large</option>
-          </select>
-        </div>
 
-        <div class="setting-row">
-          <div class="setting-info">
-            <label class="setting-label">Show floating button</label>
-            <span class="setting-desc">Display the Relay button on AI sites</span>
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label" for="setting-attachments">Store attachment files locally</label>
+              <span class="setting-desc">When enabled, Relay also downloads attachments (images/files referenced by messages) from the same site and stores their bytes in the archive. Off by default: without it, only the reference and metadata are kept, and transfers list attachments as “reference only”.</span>
+            </div>
+            <label class="toggle"><input type="checkbox" id="setting-attachments"><span class="slider"></span></label>
           </div>
-          <label class="toggle">
-            <input type="checkbox" id="setting-showfab" checked>
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-      </section>
 
-      <section id="section-privacy" class="options-section">
-        <h2>Privacy & Data</h2>
+          <p class="muted">Relay never captures passwords, cookies, hidden system prompts or content outside the conversation. See <code>PRIVACY_POLICY.md</code> for the full data map.</p>
+        </section>
 
-        <div class="setting-row">
-          <div class="setting-info">
-            <label class="setting-label">Debug logging</label>
-            <span class="setting-desc">Print Relay diagnostics to the browser console on AI sites</span>
+        <!-- APPEARANCE -->
+        <section id="section-appearance" class="options-section" aria-label="Appearance">
+          <h2>Appearance</h2>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label" for="setting-theme">Theme</label>
+              <span class="setting-desc">Applies to the panel, popup and extension pages.</span>
+            </div>
+            <select id="setting-theme" class="select">
+              <option value="system">Follow system</option>
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select>
           </div>
-          <label class="toggle">
-            <input type="checkbox" id="setting-debug">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
 
-        <div class="privacy-notice">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          <div>
-            <p class="notice-title">100% Local Storage</p>
-            <p class="notice-text">All data is stored locally on your device. Relay never sends data to any server, ever.</p>
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label" for="setting-fabposition">Floating button position</label>
+              <span class="setting-desc">Where the Relay button appears on AI sites. You can also drag it; it snaps to the nearest corner.</span>
+            </div>
+            <select id="setting-fabposition" class="select">
+              <option value="bottom-right">Bottom right</option>
+              <option value="bottom-left">Bottom left</option>
+              <option value="top-right">Top right</option>
+              <option value="top-left">Top left</option>
+            </select>
           </div>
-        </div>
 
-        <div class="storage-info">
-          <div class="storage-header">
-            <span class="storage-label">Storage Usage</span>
-            <span class="storage-value" id="storage-usage">0 KB</span>
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label" for="setting-fabsize">Floating button size</label>
+              <span class="setting-desc"></span>
+            </div>
+            <select id="setting-fabsize" class="select">
+              <option value="normal">Normal</option>
+              <option value="large">Large</option>
+            </select>
           </div>
-          <div class="storage-bar">
-            <div class="storage-fill" id="storage-fill" style="width:0%"></div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label" for="setting-showfab">Show floating button</label>
+              <span class="setting-desc">Hide it and open the panel from the toolbar icon or Alt+R instead.</span>
+            </div>
+            <label class="toggle"><input type="checkbox" id="setting-showfab" checked><span class="slider"></span></label>
           </div>
-          <span class="storage-hint">7 MB warning threshold</span>
-        </div>
+        </section>
 
-        <div class="data-actions">
-          <button class="btn-secondary" id="btn-export">Export All Sessions as JSON</button>
-          <button class="btn-secondary" id="btn-clear-session">Clear Current Session</button>
-          <button class="btn-secondary" id="btn-clear-history">Clear All History</button>
-          <button class="btn-danger" id="btn-reset">Reset to Defaults</button>
-        </div>
-      </section>
-    </main>
+        <!-- ADVANCED -->
+        <section id="section-advanced" class="options-section" aria-label="Advanced">
+          <h2>Advanced</h2>
 
-    <footer class="options-footer">
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label" for="setting-debug">Debug logging</label>
+              <span class="setting-desc">Prints Relay diagnostics to the browser console on AI sites (message counts and ids only — never conversation content). Off by default.</span>
+            </div>
+            <label class="toggle"><input type="checkbox" id="setting-debug"><span class="slider"></span></label>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-label">Storage engines</span>
+              <span class="setting-desc">Settings and small pointers: browser local storage. Conversation archive, attachments and transfer state: IndexedDB in the extension's own origin.</span>
+            </div>
+            <span class="muted-2">v2</span>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <footer class="page-foot">
       <span data-version>Relay</span>
       <span>·</span>
-      <span>Made with care for AI power users</span>
+      <span>Local-only AI context bridge</span>
     </footer>
   </div>
 
+  <div id="toast" class="toast" role="status" hidden></div>
+
   <script src="../browser-polyfill.js"></script>
-  <script src="../utils/storage.js"></script>
-  <script src="../utils/compress.js"></script>
-  <script src="../utils/formatter.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

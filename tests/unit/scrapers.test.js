@@ -71,19 +71,26 @@ test('getScraper/getInjector: resolve registered globals', () => {
   delete global.window.ClaudeInjector;
 });
 
-test('checkAndInject: no pending injection is a no-op', async () => {
+test('checkAndInject: no active transfer is a no-op', async () => {
   const store = new Map();
-  global.chrome = { storage: { local: {
-    async get(k) { const o = {}; if (store.has(k)) o[k] = store.get(k); return o; },
-    async set(o) { for (const [k, v] of Object.entries(o)) store.set(k, v); },
-    async remove(k) { store.delete(k); },
-  } } };
-  const compress = require('../../utils/compress.js');
-  global.RelayCompress = compress;
+  global.chrome = {
+    storage: { local: {
+      async get(k) { const o = {}; if (store.has(k)) o[k] = store.get(k); return o; },
+      async set(o) { for (const [k, v] of Object.entries(o)) store.set(k, v); },
+      async remove(k) { store.delete(k); },
+    } },
+    runtime: { sendMessage: async () => ({ ok: true, transfer: null }) },
+  };
+  global.RelayPlatforms = {
+    detectPlatform: () => ({ id: 'chatgpt', name: 'ChatGPT' }),
+  };
   delete require.cache[require.resolve('../../utils/storage.js')];
+  delete require.cache[require.resolve('../../content/injector.js')];
   const RelayStorage = require('../../utils/storage.js');
   global.RelayStorage = RelayStorage;
-  const result = await InjectorManager.checkAndInject();
-  assert.strictEqual(result.injected, false);
-  assert.strictEqual(result.reason, 'empty');
+  const InjectorManager2 = require('../../content/injector.js');
+  const result = await InjectorManager2.checkAndInject();
+  assert.strictEqual(result.pickedUp, false);
+  assert.strictEqual(result.reason, 'none');
+  delete global.RelayPlatforms;
 });

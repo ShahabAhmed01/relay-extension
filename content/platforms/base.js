@@ -71,18 +71,30 @@ var RelayBase = (function () {
       }
       return null;
     }
+    /**
+     * Inject and VERIFY: the destination editor must actually contain the
+     * payload before we report success. An unverified insertion is returned
+     * as such — callers surface it honestly instead of claiming success.
+     */
     async function injectText(text) {
       var el = getInput();
-      if (!el) return false;
+      if (!el) { api.lastResult = { injected: false, verified: false, reason: 'no-input' }; return false; }
+      var D = (typeof RelayDOM !== 'undefined') ? RelayDOM : null;
+      var injected = false;
       try {
-        var D = (typeof RelayDOM !== 'undefined') ? RelayDOM : null;
-        if (D) return D.injectValue(el, text);
-        el.focus();
-        if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') el.value = text;
-        else el.textContent = text;
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        return true;
-      } catch (_e) { return false; }
+        injected = D ? D.injectValue(el, text) : (el.value = text, true);
+      } catch (_e) { injected = false; }
+      var canVerify = !!(D && typeof D.verifyInjected === 'function');
+      var verified = !!(injected && canVerify && D.verifyInjected(el, text));
+      if (injected && !verified) {
+        // One safe retry: some editors drop the first programmatic value.
+        try {
+          injected = D ? D.injectValue(el, text) : false;
+          verified = !!(injected && D && D.verifyInjected(el, text));
+        } catch (_e2) { /* keep first result */ }
+      }
+      api.lastResult = { injected: injected, verified: verified, reason: verified ? 'ok' : (injected ? 'unverified' : 'failed') };
+      return injected;
     }
     async function submit() {
       var b = getSubmit();
@@ -90,7 +102,7 @@ var RelayBase = (function () {
       return false;
     }
     function isReady() { return !!getInput(); }
-    var api = { injectText: injectText, submit: submit, isReady: isReady, _getInput: getInput };
+    var api = { injectText: injectText, submit: submit, isReady: isReady, _getInput: getInput, lastResult: null };
     if (globalName && typeof window !== 'undefined') window[globalName] = api;
     return api;
   }

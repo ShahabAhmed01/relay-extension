@@ -25,7 +25,7 @@ if (!['chrome', 'firefox', 'source'].includes(target)) {
 
 const INCLUDE = [
   'manifest.json', 'background.js', 'browser-polyfill.js',
-  'assets', 'content', 'options', 'popup', 'utils',
+  'assets', 'content', 'options', 'popup', 'archive', 'ui', 'utils',
 ];
 
 function copyInto(src, dest) {

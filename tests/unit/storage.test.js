@@ -1,136 +1,111 @@
 /**
- * Relay unit tests — storage utility with a mocked chrome.storage.local.
+ * Relay v2 unit tests — settings storage (chrome.storage.local wrapper).
+ * The v1 session/history API is intentionally GONE (the archive replaced
+ * it); these tests pin the new contract: defaults, normalization, v1-key
+ * migration, pause state and transfer pointers.
  */
 const test = require('node:test');
 const assert = require('node:assert');
 
-function makeMockStorage() {
-  const data = new Map();
-  return { storage: { local: {
+function freshStorage() {
+  const store = new Map();
+  global.chrome = { storage: { local: {
     async get(key) {
-      if (key === null || key === undefined) return Object.fromEntries(data);
-      if (Array.isArray(key)) {
-        const o = {};
-        for (const k of key) if (data.has(k)) o[k] = data.get(k);
-        return o;
-      }
       const o = {};
-      if (data.has(key)) o[key] = data.get(key);
+      for (const k of (Array.isArray(key) ? key : [key])) if (store.has(k)) o[k] = store.get(k);
       return o;
     },
-    async set(obj) { for (const [k, v] of Object.entries(obj)) data.set(k, v); },
-    async remove(key) { (Array.isArray(key) ? key : [key]).forEach((k) => data.delete(k)); },
+    async set(obj) { for (const [k, v] of Object.entries(obj)) store.set(k, v); },
+    async remove(key) { (Array.isArray(key) ? key : [key]).forEach((k) => store.delete(k)); },
     async getBytesInUse() { return 0; },
   } } };
+  delete require.cache[require.resolve('../../utils/storage.js')];
+  const RelayStorage = require('../../utils/storage.js');
+  global.RelayStorage = RelayStorage;
+  return { RelayStorage, store };
 }
 
-global.chrome = makeMockStorage();
-const compress = require('../../utils/compress.js');
-global.RelayCompress = compress;
-const RelayStorage = require('../../utils/storage.js');
-
-function msgs(n) {
-  return Array.from({ length: n }, (_, i) => ({
-    role: i % 2 === 0 ? 'user' : 'assistant', content: 'message ' + i, index: i,
-  }));
-}
-
-test('getSettings: returns defaults when nothing stored', async () => {
+test('getSettings: returns v2 defaults', async () => {
+  const { RelayStorage } = freshStorage();
   const s = await RelayStorage.getSettings();
-  assert.strictEqual(s.maxMessages, 30);
   assert.strictEqual(s.autoCapture, true);
+  assert.strictEqual(s.handoffMode, 'full');
+  assert.strictEqual(s.partBudget, 15000);
+  assert.strictEqual(s.continuationCount, 30);
+  assert.strictEqual(s.autoInsert, true);
+  assert.strictEqual(s.captureAttachments, false);
+  assert.strictEqual(s.debug, false);
   assert.strictEqual(s.theme, 'system');
-  assert.strictEqual(s.maxChars, 120000);
+  assert.deepStrictEqual(s.pausePlatforms, []);
 });
 
-test('normalizeSettings: clamps out-of-range values', async () => {
-  assert.strictEqual(RelayStorage.normalizeMaxMessages(1), 5);
-  assert.strictEqual(RelayStorage.normalizeMaxMessages(9999), 200);
-  assert.strictEqual(RelayStorage.normalizeMaxMessages('garbage'), 30);
-  const s = RelayStorage.normalizeSettings({ theme: 'solarized', fabPosition: 'middle', maxChars: 1 });
+test('normalizeSettings: clamps and rejects invalid values', () => {
+  const { RelayStorage } = freshStorage();
+  const s = RelayStorage.normalizeSettings({
+    handoffMode: 'bogus', partBudget: 10, continuationCount: 99999,
+    theme: 'solarized', fabPosition: 'middle', pausePlatforms: ['claude', 42, null],
+  });
+  assert.strictEqual(s.handoffMode, 'full');
+  assert.strictEqual(s.partBudget, 4000); // min clamp
+  assert.strictEqual(s.continuationCount, 200); // max clamp
   assert.strictEqual(s.theme, 'system');
   assert.strictEqual(s.fabPosition, 'bottom-right');
-  assert.strictEqual(s.maxChars, 20000); // min clamp
+  assert.deepStrictEqual(s.pausePlatforms, ['claude'], 'only string platform ids survive');
 });
 
-test('saveSession + getSession round-trips with compression and count', async () => {
-  const session = await RelayStorage.saveSession('chatgpt', 'ChatGPT', msgs(12));
-  assert.strictEqual(session.messageCount, 12);
-  assert.strictEqual(session.platformId, 'chatgpt');
-  const back = await RelayStorage.getSession();
-  assert.strictEqual(back.messageCount, 12);
-  assert.strictEqual(back.messages.length, 12);
-  assert.strictEqual(back.messages[0].content, 'message 0');
+test('v1 settings migration: includeFullHistory/maxMessages/autoInject map onto v2', () => {
+  const { RelayStorage } = freshStorage();
+  const full = RelayStorage.normalizeSettings({ includeFullHistory: true, maxMessages: 50, autoInject: false });
+  assert.strictEqual(full.handoffMode, 'full');
+  assert.strictEqual(full.autoInsert, false);
+
+  const capped = RelayStorage.normalizeSettings({ includeFullHistory: false, maxMessages: 12 });
+  assert.strictEqual(capped.handoffMode, 'continuation');
+  assert.strictEqual(capped.continuationCount, 12);
+
+  // v2 values win when both are present.
+  const explicit = RelayStorage.normalizeSettings({ includeFullHistory: false, handoffMode: 'multipart' });
+  assert.strictEqual(explicit.handoffMode, 'multipart');
 });
 
-test('saveSession: trims to maxMessages and keeps the most recent', async () => {
-  await RelayStorage.saveSettings({ maxMessages: 5 });
-  const session = await RelayStorage.saveSession('claude', 'Claude', msgs(20));
-  assert.strictEqual(session.messages.length, 5);
-  assert.strictEqual(session.messages[4].content, 'message 19');
-  assert.strictEqual(session.truncated, true);
-  assert.strictEqual(session.originalMessageCount, 20);
+test('saveSettings: merges partials and persists', async () => {
+  const { RelayStorage, store } = freshStorage();
+  await RelayStorage.saveSettings({ handoffMode: 'multipart' });
+  const s = await RelayStorage.getSettings();
+  assert.strictEqual(s.handoffMode, 'multipart');
+  assert.strictEqual(s.autoCapture, true, 'untouched keys keep defaults');
+  assert.ok(store.has('relay_settings'));
 });
 
-test('history: dedupes per capture and is bounded by HISTORY_LIMIT', async () => {
-  await RelayStorage.saveSession('poe', 'Poe', msgs(3));
-  await RelayStorage.saveSession('poe', 'Poe', msgs(4)); // same platform, updated capture
-  let history = await RelayStorage.getHistory();
-  assert.strictEqual(history.filter((h) => h.platformId === 'poe').length, 1);
-  for (let i = 0; i < 30; i++) {
-    await RelayStorage.saveSession('poe' + i, 'Poe' + i, msgs(2));
-  }
-  history = await RelayStorage.getHistory();
-  assert.ok(history.length <= RelayStorage.HISTORY_LIMIT);
+test('isCapturePaused: global and per-platform', async () => {
+  const { RelayStorage } = freshStorage();
+  let p = await RelayStorage.isCapturePaused('chatgpt');
+  assert.strictEqual(p.paused, false);
+
+  await RelayStorage.saveSettings({ pausePlatforms: ['chatgpt'] });
+  p = await RelayStorage.isCapturePaused('chatgpt');
+  assert.strictEqual(p.paused, true);
+  assert.strictEqual(p.scope, 'platform');
+  p = await RelayStorage.isCapturePaused('claude');
+  assert.strictEqual(p.paused, false);
+
+  await RelayStorage.saveSettings({ autoCapture: false });
+  p = await RelayStorage.isCapturePaused('claude');
+  assert.strictEqual(p.paused, true);
+  assert.strictEqual(p.scope, 'global');
 });
 
-test('pending injection: set/get/clear and attempts bumping', async () => {
-  assert.strictEqual(await RelayStorage.getPendingInjection(), null);
-  await RelayStorage.setPendingInjection({ targetPlatformId: 'claude', formattedContext: 'ctx' });
-  const p = await RelayStorage.getPendingInjection();
-  assert.strictEqual(p.targetPlatformId, 'claude');
-  assert.strictEqual(p.attempts, 0);
-  await RelayStorage.bumpPendingAttempts();
-  await RelayStorage.bumpPendingAttempts();
-  assert.strictEqual((await RelayStorage.getPendingInjection()).attempts, 2);
-  await RelayStorage.clearPendingInjection();
-  assert.strictEqual(await RelayStorage.getPendingInjection(), null);
+test('transfer pointer: set/get round trip', async () => {
+  const { RelayStorage } = freshStorage();
+  assert.strictEqual(await RelayStorage.getActiveTransferPointer(), null);
+  await RelayStorage.setActiveTransferPointer('x_123');
+  const p = await RelayStorage.getActiveTransferPointer();
+  assert.strictEqual(p.transferId, 'x_123');
+  assert.ok(p.at > 0);
 });
 
-test('pending injection: rejects incomplete payloads', async () => {
-  assert.strictEqual(await RelayStorage.setPendingInjection({ targetPlatformId: 'x' }), false);
-  assert.strictEqual(await RelayStorage.setPendingInjection(null), false);
-});
-
-test('pending injection: expires after the 30-minute TTL', async () => {
-  const realNow = Date.now;
-  Date.now = () => realNow() - 31 * 60 * 1000; // travel 31 minutes into the past
-  await RelayStorage.setPendingInjection({ targetPlatformId: 'gemini', formattedContext: 'old ctx' });
-  Date.now = realNow;
-  assert.strictEqual(await RelayStorage.getPendingInjection(), null);
-});
-
-test('pending injection: wrong-target pending is still returned (caller filters)', async () => {
-  await RelayStorage.setPendingInjection({ targetPlatformId: 'deepseek', formattedContext: 'ctx' });
-  const p = await RelayStorage.getPendingInjection();
-  assert.strictEqual(p.targetPlatformId, 'deepseek');
-  await RelayStorage.clearPendingInjection();
-});
-
-test('clearSession empties the current session', async () => {
-  await RelayStorage.saveSession('qwen', 'Qwen', msgs(3));
-  await RelayStorage.clearSession();
-  assert.strictEqual(await RelayStorage.getSession(), null);
-});
-
-test('getStorageUsage: reports kb and warn flag', async () => {
-  const usage = await RelayStorage.getStorageUsage();
-  assert.strictEqual(typeof usage.kb, 'number');
-  assert.strictEqual(usage.warn, false);
-});
-
-test('exportAll: valid JSON with version marker', async () => {
-  const exported = JSON.parse(await RelayStorage.exportAll());
-  assert.strictEqual(exported.version, 2);
-  assert.ok(exported.exportedAt);
+test('saveSettings: surfaces storage failure instead of pretending', async () => {
+  const { RelayStorage } = freshStorage();
+  global.chrome.storage.local.set = async () => { throw new Error('QUOTA_BYTES exceeded'); };
+  await assert.rejects(RelayStorage.saveSettings({ debug: true }), /Could not save settings/);
 });

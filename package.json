@@ -1,7 +1,7 @@
 {
   "name": "relay-extension",
-  "version": "1.1.0",
-  "description": "Relay — AI Context Bridge Browser Extension. Never lose your AI conversation thread.",
+  "version": "2.0.0",
+  "description": "Relay — AI Context Bridge Browser Extension. Lossless local archive for AI conversations and full-fidelity cross-platform handoff.",
   "scripts": {
     "build": "node build-icons.js",
     "pack": "node build-package.js",
@@ -17,6 +17,7 @@
     "validate": "npm run lint && npm run test:unit"
   },
   "devDependencies": {
+    "fake-indexeddb": "^6.2.2",
     "puppeteer": "^24.43.1",
     "sharp": "^0.33.0"
   },
