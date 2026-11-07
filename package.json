@@ -25,5 +25,9 @@
     "node": ">=18"
   },
   "private": true,
-  "license": "MIT"
+  "license": "MIT",
+  "allowScripts": {
+    "puppeteer@24.43.1": true,
+    "sharp@0.33.5": true
+  }
 }
