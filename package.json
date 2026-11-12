@@ -18,7 +18,7 @@
   },
   "devDependencies": {
     "fake-indexeddb": "^6.2.8",
-    "puppeteer": "^24.43.1",
+    "puppeteer": "^25.17.0",
     "sharp": "^0.35.5"
   },
   "engines": {
@@ -27,7 +27,7 @@
   "private": true,
   "license": "MIT",
   "allowScripts": {
-    "puppeteer@24.43.1": true,
-    "sharp@0.35.5": true
+    "sharp@0.35.5": true,
+    "puppeteer@25.17.0": true
   }
 }
