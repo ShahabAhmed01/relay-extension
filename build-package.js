@@ -28,6 +28,9 @@ const INCLUDE = [
   'assets', 'content', 'options', 'popup', 'archive', 'ui', 'utils',
 ];
 
+// Documentation-only assets must never ship inside the extension package.
+const ASSET_EXCLUDE = new Set(['social-preview.png', 'social-preview.svg', 'screenshots']);
+
 function copyInto(src, dest) {
   const to = path.join(dest, path.basename(src));
   if (fs.statSync(src).isDirectory()) fs.cpSync(src, to, { recursive: true });
@@ -37,8 +40,21 @@ function copyInto(src, dest) {
 function buildChrome(dir) {
   for (const p of INCLUDE) {
     const src = path.join(ROOT, p);
-    if (fs.existsSync(src)) copyInto(src, dir);
-    else console.warn(`  ! optional file missing: ${p}`);
+    if (!fs.existsSync(src)) {
+      console.warn(`  ! optional file missing: ${p}`);
+      continue;
+    }
+    if (p !== 'assets') {
+      copyInto(src, dir);
+      continue;
+    }
+    // Copy the runtime icons/logo, but keep repo-only images out of the build.
+    const to = path.join(dir, 'assets');
+    fs.mkdirSync(to, { recursive: true });
+    for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+      if (ASSET_EXCLUDE.has(entry.name)) continue;
+      copyInto(path.join(src, entry.name), to);
+    }
   }
 }
 
