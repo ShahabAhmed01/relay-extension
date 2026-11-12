@@ -19,7 +19,7 @@
   "devDependencies": {
     "fake-indexeddb": "^6.2.2",
     "puppeteer": "^24.43.1",
-    "sharp": "^0.33.0"
+    "sharp": "^0.35.5"
   },
   "engines": {
     "node": ">=18"
