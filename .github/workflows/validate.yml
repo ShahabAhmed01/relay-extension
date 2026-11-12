@@ -50,7 +50,7 @@ jobs:
         run: node build-package.js --target=firefox
       - name: Package source archive
         run: node build-package.js --target=source
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: relay-packages
           path: |
