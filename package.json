@@ -17,7 +17,7 @@
     "validate": "npm run lint && npm run test:unit"
   },
   "devDependencies": {
-    "fake-indexeddb": "^6.2.2",
+    "fake-indexeddb": "^6.2.8",
     "puppeteer": "^24.43.1",
     "sharp": "^0.33.0"
   },
