@@ -1,0 +1,36 @@
+name: Feature request
+description: Suggest a new feature or improvement for Relay
+title: "[Feature] "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: "Have a feature idea for Relay? Great. Please search existing issues first to avoid duplicates."
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem are you trying to solve? How does it affect your workflow?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What would you like Relay to do?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any other approaches or tools you have considered.
+    validations:
+      required: false
+  - type: textarea
+    id: benefit
+    attributes:
+      label: Expected benefit
+      description: Who would benefit and how?
+    validations:
+      required: true

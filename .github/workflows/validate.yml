@@ -19,7 +19,7 @@ jobs:
       - name: Lint (syntax, manifest, privacy, innerHTML, parity audits)
         run: node scripts/lint.js
       - name: Unit tests
-        run: node --test "tests/unit/*.test.js"
+        run: node --test tests/unit/
 
   e2e:
     runs-on: ubuntu-latest

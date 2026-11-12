@@ -1,0 +1,25 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    # Conservative: only non-breaking dependency updates by default.
+    allow:
+      - dependency-type: "direct"
+    # Dev tooling (puppeteer, sharp, fake-indexeddb) can be kept current
+    # with patch/minor updates; major upgrades are reviewed manually.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"

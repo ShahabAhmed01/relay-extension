@@ -1,7 +1,7 @@
 # Relay — The AI Context Bridge
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Validate](https://img.shields.io/badge/CI-lint%20%2B%20unit%20%2B%20e2e-green.svg)](.github/workflows/validate.yml)
+[![CI](https://github.com/ShahabAhmed01/relay-extension/actions/workflows/validate.yml/badge.svg)](https://github.com/ShahabAhmed01/relay-extension/actions/workflows/validate.yml)
 
 **Move between AI platforms without losing the thread.**
 
@@ -27,7 +27,8 @@ Relay is an open-source browser extension that captures your AI conversations in
 10. [Privacy and security](#privacy-and-security)
 11. [Keyboard shortcuts](#keyboard-shortcuts)
 12. [Troubleshooting](#troubleshooting)
-13. [Known limitations](#known-limitations)
+13. [Screenshots](#screenshots)
+14. [Known limitations](#known-limitations)
 14. [Development and validation](#development-and-validation)
 15. [Project structure](#project-structure)
 
@@ -165,6 +166,15 @@ Detection and capture use each platform's real DOM (element-identity based — i
 - **"Inserted but could not be verified"** — the destination editor accepted an insert but Relay couldn't read the expected text back. Check the composer before sending.
 - **Fallback warning** — native selectors failed on that site; the generic parser captured what it could. Review the archive before transferring.
 - **After upgrading from v1** — your old session and history entries are migrated automatically and marked as legacy imports.
+
+## Screenshots
+
+| | |
+|---|---|
+| Validation suite — lint + 67 unit tests all passing | |
+| ![Validation terminal output](assets/screenshots/validate-terminal.png) | |
+
+A live demo GIF of the extension running on ChatGPT, Claude, Gemini, and other platforms is planned. Relay reads the conversation pages you already have open, so a genuine demo requires a signed-in session on each platform — it cannot be recorded against mock pages alone.
 
 ## Known limitations
 

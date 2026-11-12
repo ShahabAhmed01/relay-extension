@@ -1,0 +1,15 @@
+<svg width="1280" height="640" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#0b1120"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <rect x="0" y="0" width="14" height="640" fill="#38bdf8"/>
+  <rect x="1080" y="0" width="200" height="640" fill="#11192e"/>
+  <text x="340" y="320" font-family="Segoe UI Bold, Arial" font-size="110" fill="#f5fcfd" text-anchor="middle">Relay</text>
+  <circle cx="650" cy="320" r="10" fill="#38bdf8"/>
+  <text x="640" y="400" font-family="Segoe UI, Arial" font-size="40" fill="#94a3b8" text-anchor="middle">Lossless local archive for AI conversations — continue them anywhere.</text>
+  <text x="640" y="580" font-family="Segoe UI, Arial" font-size="28" fill="#63738c" text-anchor="middle">Browser extension  •  Manifest V3  •  100% local, no servers</text>
+</svg>
